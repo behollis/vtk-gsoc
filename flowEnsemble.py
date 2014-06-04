@@ -108,11 +108,14 @@ def mkRequestData(container):
         if container.Count == 0:
             req.Set(vtk.vtkStreamingDemandDrivenPipeline.CONTINUE_EXECUTING(), 1)
         elif container.Count == container.MaxIterations - 1:
+            #print 'max iterations: ' + str(container.Count)
             container.Count = 0
             req.Remove(vtk.vtkStreamingDemandDrivenPipeline.CONTINUE_EXECUTING())
             append = vtk.vtkAppendPolyData()
             for line in container.Streamlines:
                 append.AddInputData(line)
+                tpt = line.GetPoint(line.GetNumberOfPoints())
+                print 'terminal point: ' + str(tpt)
             append.Update()
 
             print 'writing'
