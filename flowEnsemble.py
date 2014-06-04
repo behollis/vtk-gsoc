@@ -3,6 +3,7 @@ import numpy
 from vtk.util import numpy_support as nsup
 import vtk
 
+MEMBERS = 20
 
 def makeReadFunction(source, index):
     def readData():
@@ -36,7 +37,7 @@ class ProgrammableFilterDataContainer(object):
     def __init__(self, f):
         self.Filter = f
         self.Count = 0
-        self.MaxIterations = 2
+        self.MaxIterations = MEMBERS
         self.Streamlines = []
 
 def mkRequestUpdateExtent(container):
@@ -52,20 +53,50 @@ def mkRequestData(container):
 
         input = self.GetInputDataObject(0, 0)
 
+   
+        '''
         line = vtk.vtkLineSource()
         line.SetPoint1(0, 0, 0)
         line.SetPoint2(126, 126, 0)
-        line.SetResolution(10)
+        line.SetResolution(20)
+        '''
+        
+        pt = vtk.vtkPointSource()
+        pt.SetNumberOfPoints(1)
+        pt.SetCenter(29.,29.,0.)
+        #pt.SetCenter(30.,30.,0.)
+        pt.SetRadius(0.)
+        
+        
+        #pt.SetDistributionToUniform()
+        #pt.SetOutputPointsPrecision(10)
+        
+        '''
+        w = vtk.vtkPolyDataWriter()
+        w.SetInputConnection(pt.GetOutputPort())
+        w.SetFileName( 'points.vtk' )
+        w.Write()
+        '''
+
 
         st = vtk.vtkStreamTracer()
         st.SetInputArrayToProcess(0, 0, 0, vtk.vtkDataObject.FIELD_ASSOCIATION_POINTS, "velocity")
-        st.SetSourceConnection(line.GetOutputPort())
+        
+        
+        #st.SetSourceConnection(line.GetOutputPort())
+        st.SetSourceConnection(pt.GetOutputPort())
+        #st.SetStartPosition(39.0, 39.0, 0.0)
+        
         st.SetInputData(input)
-        st.SetMaximumPropagation(100)
-        st.SetInitialIntegrationStep(0.2)
-        st.SetMinimumIntegrationStep(0.01)
-        st.SetMaximumIntegrationStep(0.5)
+        #Specify the maximum length of a streamline expressed in LENGTH_UNIT. 
+        st.SetMaximumPropagation(5000*20)
+        
+        st.SetMaximumNumberOfSteps(1000 / 2)
+        st.SetInitialIntegrationStep(0.5)
+        st.SetMinimumIntegrationStep(0.5)
+        st.SetMaximumIntegrationStep(1.0)
         st.SetIntegratorTypeToRungeKutta45()
+        st.SetIntegrationDirectionToBackward()#Forward()
         st.Update()
 
         sline = st.GetOutput().NewInstance()
@@ -94,30 +125,80 @@ def mkRequestData(container):
         container.Count += 1
     return requestData
 
+'''
+http://www.vtk.org/Wiki/VTK/Examples/Cxx/Utilities/PCAStatistics
+
+// Construct a data set of 3 3D points.
+ 
+  // These would be all of your "x" values.
+  const char m0Name[] = "M0";
+  vtkSmartPointer<vtkDoubleArray> dataset1Arr =
+    vtkSmartPointer<vtkDoubleArray>::New();
+  dataset1Arr->SetNumberOfComponents(1);
+  dataset1Arr->SetName( m0Name );
+  dataset1Arr->InsertNextValue(0);
+  dataset1Arr->InsertNextValue(1);
+  dataset1Arr->InsertNextValue(0);
+ 
+  // These would be all of your "y" values.
+  const char m1Name[] = "M1";
+  vtkSmartPointer<vtkDoubleArray> dataset2Arr =
+    vtkSmartPointer<vtkDoubleArray>::New();
+  dataset2Arr->SetNumberOfComponents(1);
+  dataset2Arr->SetName( m1Name );
+  dataset2Arr->InsertNextValue(0);
+  dataset2Arr->InsertNextValue(0);
+  dataset2Arr->InsertNextValue(1);
+ 
+  // These would be all of your "z" values.
+  const char m2Name[] = "M2";
+  vtkSmartPointer<vtkDoubleArray> dataset3Arr =
+    vtkSmartPointer<vtkDoubleArray>::New();
+  dataset3Arr->SetNumberOfComponents(1);
+  dataset3Arr->SetName( m2Name );
+  dataset3Arr->InsertNextValue(0);
+  dataset3Arr->InsertNextValue(0);
+  dataset3Arr->InsertNextValue(0);
+ 
+  vtkSmartPointer<vtkTable> datasetTable =
+    vtkSmartPointer<vtkTable>::New();
+  datasetTable->AddColumn(dataset1Arr);
+  datasetTable->AddColumn(dataset2Arr);
+  datasetTable->AddColumn(dataset3Arr);
+'''
+
 if __name__ == '__main__':
-    ps1 = vtk.vtkProgrammableSource()
-    ps1.GetStructuredPointsOutput()
-    ps1.GetExecutive().SetOutputData(0, vtk.vtkImageData())
-    ps1.SetExecuteMethod(makeReadFunction(ps1, 1))
     
+   
+    
+    r = vtk.vtkEnsembleSource()
+    aColumn = vtk.vtkIntArray()
+    aColumn.SetName("Ensemble Index")
+    
+    for mem in range(1,MEMBERS+1):
+        ps = vtk.vtkProgrammableSource()
+        ps.GetStructuredPointsOutput()
+        ps.GetExecutive().SetOutputData(0, vtk.vtkImageData())
+        ps.SetExecuteMethod(makeReadFunction(ps, mem))
+        r.AddMember(ps)
+        aColumn.InsertNextValue(mem)
+    
+    '''
     ps2 = vtk.vtkProgrammableSource()
     ps2.GetStructuredPointsOutput()
     ps2.GetExecutive().SetOutputData(0, vtk.vtkImageData())
     ps2.SetExecuteMethod(makeReadFunction(ps2, 2))
+    '''
     
-    r = vtk.vtkEnsembleSource()
-    
-    aColumn = vtk.vtkIntArray()
-    aColumn.SetName("Ensemble Index")
-    for res in [1,2]:
-        aColumn.InsertNextValue(res)
+    #for res in [1,2]:
+    #    aColumn.InsertNextValue(res)
     table = vtk.vtkTable()
-    table.SetNumberOfRows(2)
+    table.SetNumberOfRows(MEMBERS)
     table.GetRowData().AddArray(aColumn)
     r.SetMetaData(table)
     
-    r.AddMember(ps1)
-    r.AddMember(ps2)
+    #r.AddMember(ps1)
+    #r.AddMember(ps2)
     
     pf = vtk.vtkProgrammableFilter()
     pf.SetInputConnection(r.GetOutputPort())
