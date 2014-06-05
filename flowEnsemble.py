@@ -3,7 +3,7 @@ import numpy
 from vtk.util import numpy_support as nsup
 import vtk
 
-MEMBERS = 20
+MEMBERS = 200
 
 def makeReadFunction(source, index):
     def readData():
@@ -112,12 +112,34 @@ def mkRequestData(container):
             container.Count = 0
             req.Remove(vtk.vtkStreamingDemandDrivenPipeline.CONTINUE_EXECUTING())
             append = vtk.vtkAppendPolyData()
+            
+            comp1_array = vtk.vtkDoubleArray()
+            comp1_array.SetNumberOfComponents(1)
+            comp2_array = vtk.vtkDoubleArray()
+            comp2_array.SetNumberOfComponents(1)
+            #comp3_array = vtk.vtkDoubleArray()
+            #comp3_array.SetNumberOfComponents(1)
+            
             for line in container.Streamlines:
                 append.AddInputData(line)
+                
                 tpt = line.GetPoint(line.GetNumberOfPoints())
-                print 'terminal point: ' + str(tpt)
+                #print 'terminal point: ' + str(tpt)
+                #gather terminal points    
+                comp1_array.SetName( 'x' )
+                comp1_array.InsertNextValue(tpt[0])
+                
+                comp2_array.SetName( 'y' )
+                comp2_array.InsertNextValue(tpt[1])
+                
+                #comp3_array.SetName( 'z' )
+                #comp3_array.InsertNextValue(tpt[2])
+                
             append.Update()
-
+            
+            calcPCA(comp1_array, comp2_array)#, comp3_array)
+            
+            
             print 'writing'
             w = vtk.vtkPolyDataWriter()
             w.SetInputConnection(append.GetOutputPort())
@@ -128,51 +150,50 @@ def mkRequestData(container):
         container.Count += 1
     return requestData
 
-'''
-http://www.vtk.org/Wiki/VTK/Examples/Cxx/Utilities/PCAStatistics
+def calcPCA(xarray, yarray):#, zarray):
+    
+    #http://www.vtk.org/Wiki/VTK/Examples/Cxx/Utilities/PCAStatistics
+    
+    datasetTable = vtk.vtkTable()
+    datasetTable.AddColumn(xarray)
+    datasetTable.AddColumn(yarray)
+    #datasetTable.AddColumn(zarray)
+    
+    pcaStatistics = vtk.vtkPCAStatistics()
+    
+    pcaStatistics.SetInputData( vtk.vtkStatisticsAlgorithm.INPUT_DATA, datasetTable )
+    
+    pcaStatistics.SetColumnStatus('x', 1 )
+    pcaStatistics.SetColumnStatus('y', 1 )
+    #pcaStatistics.SetColumnStatus('z', 1 )
+    pcaStatistics.RequestSelectedColumns()
+    pcaStatistics.SetDeriveOption(True)
+    pcaStatistics.Update()
+ 
+    # ///////// Eigenvalues ////////////
+    eigenvalues = vtk.vtkDoubleArray()
+    pcaStatistics.GetEigenvalues(eigenvalues)
 
-// Construct a data set of 3 3D points.
+    for idx in range(0,eigenvalues.GetNumberOfTuples()):
+    #for eigenvalue in eigenvalues:
+        print 'Eigenvalue ' + str(idx) + ' = ' + str(eigenvalues.GetValue(idx))
  
-  // These would be all of your "x" values.
-  const char m0Name[] = "M0";
-  vtkSmartPointer<vtkDoubleArray> dataset1Arr =
-    vtkSmartPointer<vtkDoubleArray>::New();
-  dataset1Arr->SetNumberOfComponents(1);
-  dataset1Arr->SetName( m0Name );
-  dataset1Arr->InsertNextValue(0);
-  dataset1Arr->InsertNextValue(1);
-  dataset1Arr->InsertNextValue(0);
- 
-  // These would be all of your "y" values.
-  const char m1Name[] = "M1";
-  vtkSmartPointer<vtkDoubleArray> dataset2Arr =
-    vtkSmartPointer<vtkDoubleArray>::New();
-  dataset2Arr->SetNumberOfComponents(1);
-  dataset2Arr->SetName( m1Name );
-  dataset2Arr->InsertNextValue(0);
-  dataset2Arr->InsertNextValue(0);
-  dataset2Arr->InsertNextValue(1);
- 
-  // These would be all of your "z" values.
-  const char m2Name[] = "M2";
-  vtkSmartPointer<vtkDoubleArray> dataset3Arr =
-    vtkSmartPointer<vtkDoubleArray>::New();
-  dataset3Arr->SetNumberOfComponents(1);
-  dataset3Arr->SetName( m2Name );
-  dataset3Arr->InsertNextValue(0);
-  dataset3Arr->InsertNextValue(0);
-  dataset3Arr->InsertNextValue(0);
- 
-  vtkSmartPointer<vtkTable> datasetTable =
-    vtkSmartPointer<vtkTable>::New();
-  datasetTable->AddColumn(dataset1Arr);
-  datasetTable->AddColumn(dataset2Arr);
-  datasetTable->AddColumn(dataset3Arr);
-'''
+    # ///////// Eigenvectors ////////////
+    eigenvectors = vtk.vtkDoubleArray()
+    pcaStatistics.GetEigenvectors(eigenvectors)
+    
+    for idx in range(0,eigenvectors.GetNumberOfTuples()):
+        print 'Eigenvector ' + str(idx) + ' : '
+        evec = [0]*eigenvectors.GetNumberOfComponents()
+        eigenvectors.GetTuple(idx, evec)
+        
+        for j in range(0, eigenvectors.GetNumberOfComponents()):
+            print str(evec[j]) + str(' ')
+            eigenvectorSingle = vtk.vtkDoubleArray()
+            pcaStatistics.GetEigenvector(idx, eigenvectorSingle)
+    
 
 if __name__ == '__main__':
-    
-   
     
     r = vtk.vtkEnsembleSource()
     aColumn = vtk.vtkIntArray()
@@ -210,3 +231,4 @@ if __name__ == '__main__':
     pf.SetRequestUpdateExtentMethod(mkRequestUpdateExtent(container))
     pf.SetExecuteMethod(mkRequestData(container))
     pf.Update()
+
