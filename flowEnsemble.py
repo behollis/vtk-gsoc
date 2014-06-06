@@ -123,13 +123,15 @@ def mkRequestData(container):
             for line in container.Streamlines:
                 append.AddInputData(line)
                 
-                tpt = line.GetPoint(line.GetNumberOfPoints())
+                tpt = line.GetPoint(line.GetNumberOfPoints()-1)
                 #print 'terminal point: ' + str(tpt)
                 #gather terminal points    
-                comp1_array.SetName( 'x' )
+                comp1_array.SetName( 'M0' )
                 comp1_array.InsertNextValue(tpt[0])
+                #print tpt[0]
+                #print tpt[1]
                 
-                comp2_array.SetName( 'y' )
+                comp2_array.SetName( 'M1' )
                 comp2_array.InsertNextValue(tpt[1])
                 
                 #comp3_array.SetName( 'z' )
@@ -163,8 +165,8 @@ def calcPCA(xarray, yarray):#, zarray):
     
     pcaStatistics.SetInputData( vtk.vtkStatisticsAlgorithm.INPUT_DATA, datasetTable )
     
-    pcaStatistics.SetColumnStatus('x', 1 )
-    pcaStatistics.SetColumnStatus('y', 1 )
+    pcaStatistics.SetColumnStatus('M0', 1 )
+    pcaStatistics.SetColumnStatus('M1', 1 )
     #pcaStatistics.SetColumnStatus('z', 1 )
     pcaStatistics.RequestSelectedColumns()
     pcaStatistics.SetDeriveOption(True)
