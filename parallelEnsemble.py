@@ -40,6 +40,9 @@ class EnsembleReader(vta.VTKAlgorithm):
 
         return 1
 
+# mpiexec -n <NUM_PROCESSES> pvtkpython parallelEnsemble.py
+# this should be less than or equal to he number of processes
+MEMBERS = 20
 
 if __name__ == '__main__':
     wc = vtk.vtkMPIController()
@@ -54,11 +57,11 @@ if __name__ == '__main__':
     # ensemble members. Can be generalized to n members)
     # Note that if localSize > 1, there will be redundant
     # IO because of parallelization over seeds.
-    localSize = gsize / 2
+    localSize = gsize / MEMBERS
     localGroup = grank / localSize
     contr = None
     
-    for i in range(2):
+    for i in range(MEMBERS):
         group = vtk.vtkProcessGroup()
         group.SetCommunicator(wc.GetCommunicator())
         for j in range(localSize):
@@ -70,26 +73,25 @@ if __name__ == '__main__':
     rank = contr.GetLocalProcessId()
     size = contr.GetNumberOfProcesses()
     
-    ps1 = vtk.vtkPythonAlgorithm()
-    ps1.SetPythonObject(EnsembleReader(1))
-    
-    ps2 = vtk.vtkPythonAlgorithm()
-    ps2.SetPythonObject(EnsembleReader(2))
-    
+
     r = vtk.vtkEnsembleSource()
+    
+    table = vtk.vtkTable()
+    table.SetNumberOfRows(MEMBERS)
     
     aColumn = vtk.vtkIntArray()
     aColumn.SetName("Ensemble Index")
-    for res in [1,2]:
-        aColumn.InsertNextValue(res)
-    table = vtk.vtkTable()
-    table.SetNumberOfRows(2)
+   
+    for mem in range(1,MEMBERS+1):
+        ps = vtk.vtkPythonAlgorithm()#vtk.vtkProgrammableSource()
+        ps.SetPythonObject(EnsembleReader(mem))
+        r.AddMember(ps)
+        aColumn.InsertNextValue(mem)
+        
     table.GetRowData().AddArray(aColumn)
     r.SetMetaData(table)
     
-    r.AddMember(ps1)
-    r.AddMember(ps2)
-    
+
     r.UpdateInformation()
     outInfo = r.GetOutputInformation(0)
     outInfo.Set(vtk.vtkEnsembleSource.UPDATE_MEMBER(), localGroup)
