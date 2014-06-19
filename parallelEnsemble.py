@@ -6,24 +6,6 @@ import vtk
 import sys
 
 
-wc = vtk.vtkMPIController()
-gsize = wc.GetNumberOfProcesses()
-grank = wc.GetLocalProcessId()
-if gsize % 2 != 0:
-    if grank == 0:
-        print 'Only an even number of ranks is support'
-    sys.exit(0)
-
-# Split the process space to 2 (because there are 2
-# ensemble members. Can be generalized to n members)
-# Note that if localSize > 1, there will be redundant
-# IO because of parallelization over seeds.
-localSize = gsize / 2
-localGroup = grank / localSize
-contr = None
-
-
-
 class EnsembleReader(vta.VTKAlgorithm):
     def __init__(self, index):
         vta.VTKAlgorithm.__init__(self, nInputPorts=0, outputType='vtkImageData')
@@ -59,65 +41,84 @@ class EnsembleReader(vta.VTKAlgorithm):
         return 1
 
 
-for i in range(2):
-    group = vtk.vtkProcessGroup()
-    group.SetCommunicator(wc.GetCommunicator())
-    for j in range(localSize):
-        group.AddProcessId(i*localSize + j)
-    c = wc.CreateSubController(group)
-    if c != None:
-        contr = c
+if __name__ == '__main__':
+    wc = vtk.vtkMPIController()
+    gsize = wc.GetNumberOfProcesses()
+    grank = wc.GetLocalProcessId()
+    if gsize % 2 != 0:
+        if grank == 0:
+            print 'Only an even number of ranks is support'
+        sys.exit(0)
+    
+    # Split the process space to 2 (because there are 2
+    # ensemble members. Can be generalized to n members)
+    # Note that if localSize > 1, there will be redundant
+    # IO because of parallelization over seeds.
+    localSize = gsize / 2
+    localGroup = grank / localSize
+    contr = None
+    
+    for i in range(2):
+        group = vtk.vtkProcessGroup()
+        group.SetCommunicator(wc.GetCommunicator())
+        for j in range(localSize):
+            group.AddProcessId(i*localSize + j)
+        c = wc.CreateSubController(group)
+        if c != None:
+            contr = c
+    
+    rank = contr.GetLocalProcessId()
+    size = contr.GetNumberOfProcesses()
+    
+    ps1 = vtk.vtkPythonAlgorithm()
+    ps1.SetPythonObject(EnsembleReader(1))
+    
+    ps2 = vtk.vtkPythonAlgorithm()
+    ps2.SetPythonObject(EnsembleReader(2))
+    
+    r = vtk.vtkEnsembleSource()
+    
+    aColumn = vtk.vtkIntArray()
+    aColumn.SetName("Ensemble Index")
+    for res in [1,2]:
+        aColumn.InsertNextValue(res)
+    table = vtk.vtkTable()
+    table.SetNumberOfRows(2)
+    table.GetRowData().AddArray(aColumn)
+    r.SetMetaData(table)
+    
+    r.AddMember(ps1)
+    r.AddMember(ps2)
+    
+    r.UpdateInformation()
+    outInfo = r.GetOutputInformation(0)
+    outInfo.Set(vtk.vtkEnsembleSource.UPDATE_MEMBER(), localGroup)
+    r.Update()
+    
+    pt = vtk.vtkPointSource()
 
-rank = contr.GetLocalProcessId()
-size = contr.GetNumberOfProcesses()
+    pt.SetNumberOfPoints(1)
+    pt.SetCenter(29.,29.,0.)
+    pt.SetRadius(0.)
 
-ps1 = vtk.vtkPythonAlgorithm()
-ps1.SetPythonObject(EnsembleReader(1))
-
-ps2 = vtk.vtkPythonAlgorithm()
-ps2.SetPythonObject(EnsembleReader(2))
-
-r = vtk.vtkEnsembleSource()
-
-aColumn = vtk.vtkIntArray()
-aColumn.SetName("Ensemble Index")
-for res in [1,2]:
-    aColumn.InsertNextValue(res)
-table = vtk.vtkTable()
-table.SetNumberOfRows(2)
-table.GetRowData().AddArray(aColumn)
-r.SetMetaData(table)
-
-r.AddMember(ps1)
-r.AddMember(ps2)
-
-r.UpdateInformation()
-outInfo = r.GetOutputInformation(0)
-outInfo.Set(vtk.vtkEnsembleSource.UPDATE_MEMBER(), localGroup)
-r.Update()
-
-nSeeds = 100
-nLocalSeeds = nSeeds / size
-start = rank*126.0/size
-end = start + 126.0/size
-line = vtk.vtkLineSource()
-line.SetPoint1(start, start, 0)
-line.SetPoint2(end, end, 0)
-line.SetResolution(nLocalSeeds)
-
-st = vtk.vtkPStreamTracer()
-# To disable the inherent data parallelism in the filter
-st.SetController(vtk.vtkDummyController())
-st.SetInputArrayToProcess(0, 0, 0, vtk.vtkDataObject.FIELD_ASSOCIATION_POINTS, "velocity")
-st.SetSourceConnection(line.GetOutputPort())
-st.SetInputData(r.GetOutputDataObject(0))
-st.SetMaximumPropagation(100)
-st.SetInitialIntegrationStep(0.2)
-st.SetMinimumIntegrationStep(0.01)
-st.SetMaximumIntegrationStep(0.5)
-st.SetIntegratorTypeToRungeKutta45()
-
-w = vtk.vtkXMLPolyDataWriter()
-w.SetInputConnection(st.GetOutputPort())
-w.SetFileName("slines%d.vtp" % grank)
-w.Write()
+    st = vtk.vtkPStreamTracer()
+    
+    st.SetController(vtk.vtkDummyController())
+    st.SetInputArrayToProcess(0, 0, 0, vtk.vtkDataObject.FIELD_ASSOCIATION_POINTS, "velocity")
+    st.SetSourceConnection(pt.GetOutputPort())
+    st.SetInputData(r.GetOutputDataObject(0))
+    
+    #Specify the maximum length of a streamline expressed in LENGTH_UNIT. 
+    st.SetMaximumPropagation(5000)
+    st.SetMaximumNumberOfSteps(100) #bifurcation @ 100 steps
+    st.SetInitialIntegrationStep(0.5)
+    st.SetMinimumIntegrationStep(0.5)
+    st.SetMaximumIntegrationStep(1.0)
+    st.SetIntegratorTypeToRungeKutta45()
+    st.SetIntegrationDirectionToBackward()#Forward()
+    
+    
+    w = vtk.vtkXMLPolyDataWriter()
+    w.SetInputConnection(st.GetOutputPort())
+    w.SetFileName("slines%d.vtp" % grank)
+    w.Write()
