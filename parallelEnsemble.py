@@ -5,6 +5,7 @@ from vtk.util import vtkAlgorithm as vta
 import vtk
 import sys
 
+
 wc = vtk.vtkMPIController()
 gsize = wc.GetNumberOfProcesses()
 grank = wc.GetLocalProcessId()
@@ -21,17 +22,7 @@ localSize = gsize / 2
 localGroup = grank / localSize
 contr = None
 
-for i in range(2):
-    group = vtk.vtkProcessGroup()
-    group.SetCommunicator(wc.GetCommunicator())
-    for j in range(localSize):
-        group.AddProcessId(i*localSize + j)
-    c = wc.CreateSubController(group)
-    if c != None:
-        contr = c
 
-rank = contr.GetLocalProcessId()
-size = contr.GetNumberOfProcesses()
 
 class EnsembleReader(vta.VTKAlgorithm):
     def __init__(self, index):
@@ -68,6 +59,18 @@ class EnsembleReader(vta.VTKAlgorithm):
         return 1
 
 
+for i in range(2):
+    group = vtk.vtkProcessGroup()
+    group.SetCommunicator(wc.GetCommunicator())
+    for j in range(localSize):
+        group.AddProcessId(i*localSize + j)
+    c = wc.CreateSubController(group)
+    if c != None:
+        contr = c
+
+rank = contr.GetLocalProcessId()
+size = contr.GetNumberOfProcesses()
+
 ps1 = vtk.vtkPythonAlgorithm()
 ps1.SetPythonObject(EnsembleReader(1))
 
@@ -102,7 +105,7 @@ line.SetPoint1(start, start, 0)
 line.SetPoint2(end, end, 0)
 line.SetResolution(nLocalSeeds)
 
-st = vtk.vtkStreamTracer()
+st = vtk.vtkPStreamTracer()
 # To disable the inherent data parallelism in the filter
 st.SetController(vtk.vtkDummyController())
 st.SetInputArrayToProcess(0, 0, 0, vtk.vtkDataObject.FIELD_ASSOCIATION_POINTS, "velocity")
