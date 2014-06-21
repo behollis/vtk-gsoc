@@ -40,130 +40,34 @@ class EnsembleReader(vta.VTKAlgorithm):
         
 
         return 1
-    
-class PCAFilter(vta.VTKAlgorithm):
-    def __init__(self):
-        vta.VTKAlgorithm.__init__(self, nInputPorts=1, outputType='vtkImageData')
-        self.Count = 0
-        self.MaxIterations = MEMBERS
-        self.Streamlines = []
-
-    def RequestInformation(self, vtkself, request, inInfo, outInfo):
-        vtkSDDP = vtk.vtkStreamingDemandDrivenPipeline
-        outInfo.GetInformationObject(0).Set(vtkSDDP.WHOLE_EXTENT(), (0, 126, 0, 126, 0, 0), 6)
-        return 1
-    
-    def CalcPCA(self, xarray, yarray):
-        ''' Computes the eigenvalues/eigenvectors of the covariance matrix for the terminal particle positions. '''
-        
-        #See: http://www.vtk.org/Wiki/VTK/Examples/Cxx/Utilities/PCAStatistics
-        datasetTable = vtk.vtkTable()
-        datasetTable.AddColumn(xarray)
-        datasetTable.AddColumn(yarray)
-        
-        pcaStatistics = vtk.vtkPCAStatistics()
-        
-        pcaStatistics.SetInputData( vtk.vtkStatisticsAlgorithm.INPUT_DATA, datasetTable )
-        
-        pcaStatistics.SetColumnStatus('x', 1 )
-        pcaStatistics.SetColumnStatus('y', 1 )
-        pcaStatistics.RequestSelectedColumns()
-        pcaStatistics.SetDeriveOption(True)
-        pcaStatistics.Update()
-     
-        # Eigenvalues 
-        eigenvalues = vtk.vtkDoubleArray()
-        pcaStatistics.GetEigenvalues(eigenvalues)
-    
-        for idx in range(0,eigenvalues.GetNumberOfTuples()):
-        #for eigenvalue in eigenvalues:
-            print 'Eigenvalue ' + str(idx) + ' = ' + str(eigenvalues.GetValue(idx))
-     
-        # Eigenvectors 
-        eigenvectors = vtk.vtkDoubleArray()
-        pcaStatistics.GetEigenvectors(eigenvectors)
-        
-        for idx in range(0,eigenvectors.GetNumberOfTuples()):
-            print 'Eigenvector ' + str(idx) + ' : '
-            evec = [0]*eigenvectors.GetNumberOfComponents()
-            eigenvectors.GetTuple(idx, evec)
-            print evec
-
-    def RequestData(self, vtkself, request, inInfo, outInfo):
-        contr = vtk.vtkMPIController()
-        rank = contr.GetLocalProcessId()
-
-        inpt = self.GetInputDataObject(0, 0)
-
-        pt = vtk.vtkPointSource()
-        pt.SetNumberOfPoints(1)
-        pt.SetCenter(29.,29.,0.)
-        pt.SetRadius(0.)
-
-        st = vtk.vtkPStreamTracer()
-        
-        st.SetController(vtk.vtkDummyController())
-        st.SetInputArrayToProcess(0, 0, 0, vtk.vtkDataObject.FIELD_ASSOCIATION_POINTS, "velocity")
-        st.SetSourceConnection(pt.GetOutputPort())
-        st.SetInputData(inpt)
-        
-        #Specify the maximum length of a streamline expressed in LENGTH_UNIT. 
-        st.SetMaximumPropagation(5000)
-        
-        st.SetMaximumNumberOfSteps(100) #bifurcation @ 100 steps
-        st.SetInitialIntegrationStep(0.5)
-        st.SetMinimumIntegrationStep(0.5)
-        st.SetMaximumIntegrationStep(1.0)
-        st.SetIntegratorTypeToRungeKutta45()
-        st.SetIntegrationDirectionToBackward()#Forward()
-        st.Update()
-
-        sline = st.GetOutput().NewInstance()
-        sline.ShallowCopy(st.GetOutput())
-
-        container.Streamlines.append(sline)
-
-        req = self.GetCurrentRequest()
-        if container.Count == 0:
-            req.Set(vtk.vtkStreamingDemandDrivenPipeline.CONTINUE_EXECUTING(), 1)
-        elif container.Count == container.MaxIterations - 1:
-            container.Count = 0
-            req.Remove(vtk.vtkStreamingDemandDrivenPipeline.CONTINUE_EXECUTING())
-            append = vtk.vtkAppendPolyData()
-            
-            comp1_array = vtk.vtkDoubleArray()
-            comp1_array.SetNumberOfComponents(1)
-            comp2_array = vtk.vtkDoubleArray()
-            comp2_array.SetNumberOfComponents(1)
-            
-            for line in container.Streamlines:
-                append.AddInputData(line)
-                
-                tpt = line.GetPoint(line.GetNumberOfPoints()-1)
-                
-                comp1_array.SetName( 'x' )
-                comp1_array.InsertNextValue(tpt[0])
-                
-                comp2_array.SetName( 'y' )
-                comp2_array.InsertNextValue(tpt[1])
-               
-            append.Update()
-            
-            #CalcPCA(comp1_array, comp2_array)
-            
-            w = vtk.vtkXMLPolyDataWriter()
-    
-            w.SetInputConnection(st.GetOutputPort())
-            w.SetFileName("slines%d.vtp" % grank)
-            w.Write()
-
-            return
-        
-        container.Count += 1
 
 # mpiexec -n <NUM_PROCESSES> pvtkpython parallelEnsemble.py
 # this should be less than or equal to the number of processes
 MEMBERS = 20
+
+def calcPCA(xarray, yarray):
+    ''' Returns the eigenvalue the covariance matrix for the terminal particle 
+        positions. 
+    '''
+    
+    datasetTable = vtk.vtkTable()
+    datasetTable.AddColumn(xarray)
+    datasetTable.AddColumn(yarray)
+    
+    pcaStatistics = vtk.vtkPCAStatistics()
+    
+    pcaStatistics.SetInputData( vtk.vtkStatisticsAlgorithm.INPUT_DATA, datasetTable )
+    
+    pcaStatistics.SetColumnStatus('x', 1 )
+    pcaStatistics.SetColumnStatus('y', 1 )
+    pcaStatistics.RequestSelectedColumns()
+    pcaStatistics.SetDeriveOption(True)
+    pcaStatistics.Update()
+     
+    eigenvalues = vtk.vtkDoubleArray()
+    pcaStatistics.GetEigenvalues(eigenvalues)
+    
+    return eigenvalues.GetValue(0)
 
 if __name__ == '__main__':
     wc = vtk.vtkMPIController()
@@ -217,11 +121,65 @@ if __name__ == '__main__':
     outInfo.Set(vtk.vtkEnsembleSource.UPDATE_MEMBER(), localGroup)
     r.Update()
     
-    # Add programmable filter as vtkPythonAlgorithm
-    pf = vtk.vtkPythonAlgorithm()
+    EXT_X = 10
+    EXT_Y = 10
     
-    pf.SetPythonObject(PCAFilter())
-    pf.SetInputConnection(r.GetOutputPort())
-    pf.Update()
+    #terninal points over field in a member
+    fpts_x = numpy.zeros(shape=(EXT_X, EXT_Y))
+    fpts_y = numpy.zeros(shape=(EXT_X, EXT_Y))
+    
+    # calculate terminal points for each ensemble member
+    for x in range(0,EXT_X):
+        for y in range(0,EXT_Y):
+            pt = vtk.vtkPointSource()
+        
+            pt.SetNumberOfPoints(1)
+            pt.SetCenter(x,y,0.)
+            pt.SetRadius(0.)
+        
+            st = vtk.vtkStreamTracer()
+            
+            st.SetController(vtk.vtkDummyController())
+            st.SetInputArrayToProcess(0, 0, 0, vtk.vtkDataObject.FIELD_ASSOCIATION_POINTS, "velocity")
+            st.SetSourceConnection(pt.GetOutputPort())
+            st.SetInputData(r.GetOutputDataObject(0))
+            
+            #Specify the maximum length of a streamline expressed in LENGTH_UNIT. 
+            st.SetMaximumPropagation(5000)
+            st.SetMaximumNumberOfSteps(100) #bifurcation @ 100 steps
+            st.SetInitialIntegrationStep(0.5)
+            st.SetMinimumIntegrationStep(0.5)
+            st.SetMaximumIntegrationStep(1.0)
+            st.SetIntegratorTypeToRungeKutta45()
+            st.SetIntegrationDirectionToBackward()#Forward()
+            st.Update()
+            
+            line = st.GetOutput().NewInstance()
+            line.ShallowCopy(st.GetOutput())
+            
+            comp1_array = vtk.vtkDoubleArray()
+            comp1_array.SetNumberOfComponents(1)
+            comp2_array = vtk.vtkDoubleArray()
+            comp2_array.SetNumberOfComponents(1)
+            
+            tpt = line.GetPoint(line.GetNumberOfPoints()-1)
+                
+            '''
+            comp1_array.SetName( 'x' )
+            comp1_array.InsertNextValue(tpt[0])
+                
+            comp2_array.SetName( 'y' )
+            comp2_array.InsertNextValue(tpt[1])   
+            '''
+            
+            fpts_x[x][y] = tpt[0]
+            fpts_y[x][y] = tpt[1]
+            
+    '''
+    w = vtk.vtkXMLPolyDataWriter()
+    w.SetInputConnection(st.GetOutputPort())
+    w.SetFileName("slines%d.vtp" % grank)
+    w.Write()
+    '''
     
    
