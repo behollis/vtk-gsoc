@@ -38,7 +38,6 @@ class EnsembleReader(vta.VTKAlgorithm):
         image.GetPointData().AddArray(velArray)
         image.GetPointData().AddArray(rhoArray)
         
-
         return 1
 
 # mpiexec -n <NUM_PROCESSES> pvtkpython parallelEnsemble.py
@@ -156,30 +155,14 @@ if __name__ == '__main__':
             
             line = st.GetOutput().NewInstance()
             line.ShallowCopy(st.GetOutput())
-            
-            comp1_array = vtk.vtkDoubleArray()
-            comp1_array.SetNumberOfComponents(1)
-            comp2_array = vtk.vtkDoubleArray()
-            comp2_array.SetNumberOfComponents(1)
-            
+        
             tpt = line.GetPoint(line.GetNumberOfPoints()-1)
-                
-            '''
-            comp1_array.SetName( 'x' )
-            comp1_array.InsertNextValue(tpt[0])
-                
-            comp2_array.SetName( 'y' )
-            comp2_array.InsertNextValue(tpt[1])   
-            '''
             
             fpts_x[x][y] = tpt[0]
             fpts_y[x][y] = tpt[1]
             
-    '''
-    w = vtk.vtkXMLPolyDataWriter()
-    w.SetInputConnection(st.GetOutputPort())
-    w.SetFileName("slines%d.vtp" % grank)
-    w.Write()
-    '''
+    numpy.savetxt('x_member_%d.txt' % grank, fpts_x)
+    numpy.savetxt('y_member_%d.txt' % grank, fpts_y)
+            
     
    
