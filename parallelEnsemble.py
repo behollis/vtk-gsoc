@@ -161,8 +161,8 @@ if __name__ == '__main__':
             fpts_x[x][y] = tpt[0]
             fpts_y[x][y] = tpt[1]
             
-    numpy.savetxt('x_member_%d.txt' % grank, fpts_x)
-    numpy.savetxt('y_member_%d.txt' % grank, fpts_y)
+    numpy.savetxt('./out/x_member_%d.txt' % grank, fpts_x)
+    numpy.savetxt('./out/y_member_%d.txt' % grank, fpts_y)
             
     
    
