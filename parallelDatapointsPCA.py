@@ -5,8 +5,8 @@ from vtk.util import vtkAlgorithm as vta
 import vtk
 import sys
 
-EXT_X = 10
-EXT_Y = 10
+EXT_X = 40
+EXT_Y = 40
 MEMBERS = 20
 DATAPOINTS = EXT_X * EXT_Y
 

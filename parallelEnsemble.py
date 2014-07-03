@@ -4,6 +4,7 @@ from vtk.util import numpy_support as nsup
 from vtk.util import vtkAlgorithm as vta
 import vtk
 import sys
+import os
 
 
 class EnsembleReader(vta.VTKAlgorithm):
@@ -41,8 +42,14 @@ class EnsembleReader(vta.VTKAlgorithm):
         return 1
 
 # mpiexec -n <NUM_PROCESSES> pvtkpython parallelEnsemble.py
-# this should be less than or equal to the number of processes
-MEMBERS = 20
+
+NUM_CORES = 8
+NUM_PROCS = 1
+MEMBERS = NUM_CORES * 10
+SLICE = MEMBERS / (NUM_CORES * NUM_PROCS) #division of members per thread
+EXT_X = 127
+EXT_Y = 127
+ROOT = 'home/behollis/'
 
 def calcPCA(xarray, yarray):
     ''' Returns the eigenvalue the covariance matrix for the terminal particle 
@@ -69,6 +76,7 @@ def calcPCA(xarray, yarray):
     return eigenvalues.GetValue(0)
 
 if __name__ == '__main__':
+    
     wc = vtk.vtkMPIController()
     gsize = wc.GetNumberOfProcesses()
     grank = wc.GetLocalProcessId()
@@ -81,10 +89,17 @@ if __name__ == '__main__':
     # ensemble members. Can be generalized to n members)
     # Note that if localSize > 1, there will be redundant
     # IO because of parallelization over seeds.
-    localSize = gsize / MEMBERS
+
+    #print 'gsize ' + str(gsize)
+    #print 'grank ' + str(grank)
+    localSize = gsize / NUM_CORES
+    
+    #print 'localsize ' + str(localSize)
     localGroup = grank / localSize
+    
     contr = None
     
+    '''
     for i in range(MEMBERS):
         group = vtk.vtkProcessGroup()
         group.SetCommunicator(wc.GetCommunicator())
@@ -95,7 +110,9 @@ if __name__ == '__main__':
             contr = c
     
     rank = contr.GetLocalProcessId()
+    print 'rank: ' + str(rank)
     size = contr.GetNumberOfProcesses()
+    '''
     
     r = vtk.vtkEnsembleSource()
     
@@ -105,6 +122,7 @@ if __name__ == '__main__':
     aColumn = vtk.vtkIntArray()
     aColumn.SetName("Ensemble Index")
    
+    
     for mem in range(1,MEMBERS+1):
         # Add source / reader
         ps = vtk.vtkPythonAlgorithm()
@@ -120,49 +138,65 @@ if __name__ == '__main__':
     outInfo.Set(vtk.vtkEnsembleSource.UPDATE_MEMBER(), localGroup)
     r.Update()
     
-    EXT_X = 10
-    EXT_Y = 10
-    
     #terninal points over field in a member
-    fpts_x = numpy.zeros(shape=(EXT_X, EXT_Y))
-    fpts_y = numpy.zeros(shape=(EXT_X, EXT_Y))
+    #fpts_x = numpy.zeros(shape=(EXT_X, EXT_Y))
+    #fpts_y = numpy.zeros(shape=(EXT_X, EXT_Y))
     
-    # calculate terminal points for each ensemble member
-    for x in range(0,EXT_X):
-        for y in range(0,EXT_Y):
-            pt = vtk.vtkPointSource()
-        
-            pt.SetNumberOfPoints(1)
-            pt.SetCenter(x,y,0.)
-            pt.SetRadius(0.)
-        
-            st = vtk.vtkStreamTracer()
-            
-            st.SetController(vtk.vtkDummyController())
-            st.SetInputArrayToProcess(0, 0, 0, vtk.vtkDataObject.FIELD_ASSOCIATION_POINTS, "velocity")
-            st.SetSourceConnection(pt.GetOutputPort())
-            st.SetInputData(r.GetOutputDataObject(0))
-            
-            #Specify the maximum length of a streamline expressed in LENGTH_UNIT. 
-            st.SetMaximumPropagation(5000)
-            st.SetMaximumNumberOfSteps(100) #bifurcation @ 100 steps
-            st.SetInitialIntegrationStep(0.5)
-            st.SetMinimumIntegrationStep(0.5)
-            st.SetMaximumIntegrationStep(1.0)
-            st.SetIntegratorTypeToRungeKutta45()
-            st.SetIntegrationDirectionToBackward()#Forward()
-            st.Update()
-            
-            line = st.GetOutput().NewInstance()
-            line.ShallowCopy(st.GetOutput())
-        
-            tpt = line.GetPoint(line.GetNumberOfPoints()-1)
-            
-            fpts_x[x][y] = tpt[0]
-            fpts_y[x][y] = tpt[1]
-            
-    numpy.savetxt('./out/x_member_%d.txt' % grank, fpts_x)
-    numpy.savetxt('./out/y_member_%d.txt' % grank, fpts_y)
-            
+    st = vtk.vtkStreamTracer()
     
+    st.SetController(vtk.vtkDummyController())
+    st.SetInputArrayToProcess(0, 0, 0, vtk.vtkDataObject.FIELD_ASSOCIATION_POINTS, "velocity")
+    st.SetInputData(r.GetOutputDataObject(0))
+    
+    grid = vtk.vtkUnstructuredGrid()
+    pts = vtk.vtkPoints()
+    
+    for x in range( 0, EXT_X ):
+        for y in range( 0, EXT_Y ):
+            pts.InsertNextPoint(float(x),float(y),0.)
+            
+    grid.SetPoints(pts)
    
+    st.SetSourceData( grid )
+    #st.SetSourceConnection( pt.GetOutputPort() )
+    
+    dir = ROOT+'lockExchangeStreamlinesTs0050/'+str(grank*SLICE)+'/'
+   
+    for mem in range( grank*SLICE, (grank+1)*SLICE ):
+        # write out streamlines for this member(s)
+        w = vtk.vtkXMLPolyDataWriter()
+        
+        mem_num = str(mem).zfill(4)
+        print 'mem: ' + mem_num
+        
+        if not os.path.exists(dir):
+            os.makedirs(dir)
+        
+        w.SetFileName(dir+'slines%s.vtp' % mem_num)
+        
+        #Specify the maximum length of a streamline expressed in LENGTH_UNIT. 
+        st.SetMaximumPropagation(5000)
+        st.SetMaximumNumberOfSteps(100) #bifurcation @ 100 steps
+        st.SetInitialIntegrationStep(0.5)
+        st.SetMinimumIntegrationStep(0.5)
+        st.SetMaximumIntegrationStep(1.0)
+        st.SetIntegratorTypeToRungeKutta45()
+        st.SetIntegrationDirectionToBackward()#Forward()
+        st.Update()
+    
+        '''    
+        line = st.GetOutput().NewInstance()
+        line.ShallowCopy(st.GetOutput())
+    
+        tpt = line.GetPoint(line.GetNumberOfPoints()-1)
+        
+        fpts_x[x][y] = tpt[0]
+        fpts_y[x][y] = tpt[1]
+        '''
+    
+        #numpy.savetxt('./out/x_member_%d.txt' % grank, fpts_x)
+        #numpy.savetxt('./out/y_member_%d.txt' % grank, fpts_y)
+        
+        w.SetInputConnection(st.GetOutputPort())
+        w.Update()
+        w.Write()
