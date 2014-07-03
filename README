@@ -1,0 +1,6 @@
+For Beowulf cluster, use .mpi_hostfile + the following command to export local master env vars
+
+$ mpiexec -x LD_LIBRARY_PATH -x PYTHONPATH -np 16 --hostfile .mpi_hostfile pvtkpython parallelEnsemble.py
+
+Also, be aware that slave needs to have all files in a mirror directory (scripts), and original
+vector field data needs to be on slave's disk. 
