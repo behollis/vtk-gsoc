@@ -45,11 +45,11 @@ class EnsembleReader(vta.VTKAlgorithm):
 
 NUM_CORES = 8
 NUM_PROCS = 1
-MEMBERS = NUM_CORES * 10
+MEMBERS = NUM_CORES * 125
 SLICE = MEMBERS / (NUM_CORES * NUM_PROCS) #division of members per thread
 EXT_X = 127
 EXT_Y = 127
-ROOT = 'home/behollis/'
+ROOT = '../../../'
 
 def calcPCA(xarray, yarray):
     ''' Returns the eigenvalue the covariance matrix for the terminal particle 
@@ -161,6 +161,8 @@ if __name__ == '__main__':
     #st.SetSourceConnection( pt.GetOutputPort() )
     
     dir = ROOT+'lockExchangeStreamlinesTs0050/'+str(grank*SLICE)+'/'
+    if not os.path.exists(dir):
+        os.makedirs(dir)
    
     for mem in range( grank*SLICE, (grank+1)*SLICE ):
         # write out streamlines for this member(s)
@@ -169,8 +171,7 @@ if __name__ == '__main__':
         mem_num = str(mem).zfill(4)
         print 'mem: ' + mem_num
         
-        if not os.path.exists(dir):
-            os.makedirs(dir)
+        
         
         w.SetFileName(dir+'slines%s.vtp' % mem_num)
         
