@@ -5,4 +5,4 @@
 localhost slots=8
 
 # The following slave nodes 
-behollis@dhcp-59-164.cse.ucsc.edu
+behollis@dhcp-59-164.cse.ucsc.edu slots=8
