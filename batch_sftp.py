@@ -17,8 +17,6 @@ import time
 from subprocess import *
 import paramiko
 
-# Submission command
-# % cd  /afs/cats.ucsc.edu/class/cmps012b-pt.u14/assignment_name/your_user_id
 
 ASG = 'pa1'
 
