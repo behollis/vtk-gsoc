@@ -6,9 +6,6 @@ __author__ = 'brad'
 
 __author__ = 'brad'
 
-# Submission command
-# % cd  /afs/cats.ucsc.edu/class/cmps012b-pt.u14/assignment_name/your_user_id
-
 from ftplib import FTP
 
 import os
@@ -16,9 +13,6 @@ import sys
 import time
 from subprocess import *
 import paramiko
-
-
-ASG = 'pa1'
 
 def ftpConnect():
     
@@ -66,9 +60,8 @@ if __name__ == '__main__':
     global PASSWORD
 
     try:
-        if sys.argv[1] is not '':
-            ASG = sys.argv[1]
-            PASSWORD = str(sys.argv[2])
+        ASG = sys.argv[1]
+        PASSWORD = str(sys.argv[2])
     except:
         print 'Usage: arg1 = path arg2 = ftp password'
         
