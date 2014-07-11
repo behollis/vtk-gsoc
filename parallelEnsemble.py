@@ -43,9 +43,9 @@ class EnsembleReader(vta.VTKAlgorithm):
 
 # mpiexec -n <NUM_PROCESSES> pvtkpython parallelEnsemble.py
 
-NUM_CORES = 8
+NUM_CORES = 12#16#8
 NUM_PROCS = 1
-MEMBERS = NUM_CORES * 125
+MEMBERS = NUM_CORES * 83#62#125
 SLICE = MEMBERS / (NUM_CORES * NUM_PROCS) #division of members per thread
 EXT_X = 127
 EXT_Y = 127
@@ -148,17 +148,34 @@ if __name__ == '__main__':
     st.SetInputArrayToProcess(0, 0, 0, vtk.vtkDataObject.FIELD_ASSOCIATION_POINTS, "velocity")
     st.SetInputData(r.GetOutputDataObject(0))
     
-    grid = vtk.vtkUnstructuredGrid()
-    pts = vtk.vtkPoints()
+    # seed points for half of grid
+    grid1 = vtk.vtkUnstructuredGrid()
+    pts1 = vtk.vtkPoints()
     
-    for x in range( 0, EXT_X ):
-        for y in range( 0, EXT_Y ):
-            pts.InsertNextPoint(float(x),float(y),0.)
+    for x in range( 0, EXT_X-8, 4 ):
+        for y in range( 0, EXT_Y-8, 4 ):
+            pts1.InsertNextPoint(float(x),float(y),0.)
+    
+    # seed points for other half of grid
+    grid2 = vtk.vtkUnstructuredGrid()
+    pts2 = vtk.vtkPoints()
+    
+    for x in range( 3, EXT_X-8, 4 ):
+        for y in range( 1, EXT_Y-8, 4 ):
+            pts2.InsertNextPoint(float(x),float(y),0.)
             
-    grid.SetPoints(pts)
    
-    st.SetSourceData( grid )
+    grid1.SetPoints(pts1)
+    grid2.SetPoints(pts2)
+   
     #st.SetSourceConnection( pt.GetOutputPort() )
+    st.SetMaximumPropagation(5000)
+    st.SetMaximumNumberOfSteps(500) 
+    st.SetInitialIntegrationStep(0.5)
+    st.SetMinimumIntegrationStep(0.1)
+    st.SetMaximumIntegrationStep(0.5)
+    st.SetTerminalSpeed(0.000001)
+    st.SetIntegratorTypeToRungeKutta45()
     
     dir = ROOT+'lockExchangeStreamlinesTs0050/'+str(grank*SLICE)+'/'
     if not os.path.exists(dir):
@@ -171,20 +188,51 @@ if __name__ == '__main__':
         mem_num = str(mem).zfill(4)
         print 'mem: ' + mem_num
         
-        
-        
-        w.SetFileName(dir+'slines%s.vtp' % mem_num)
-        
-        #Specify the maximum length of a streamline expressed in LENGTH_UNIT. 
-        st.SetMaximumPropagation(5000)
-        st.SetMaximumNumberOfSteps(100) #bifurcation @ 100 steps
-        st.SetInitialIntegrationStep(0.5)
-        st.SetMinimumIntegrationStep(0.5)
-        st.SetMaximumIntegrationStep(1.0)
-        st.SetIntegratorTypeToRungeKutta45()
-        st.SetIntegrationDirectionToBackward()#Forward()
+        #1F
+        w.SetFileName(dir+'1Fslines%s.vtp' % mem_num)
+        st.SetSourceData(grid1)  
+        st.SetIntegrationDirectionToForward()
         st.Update()
-    
+        
+        w.SetInputConnection(st.GetOutputPort())
+        w.Update()
+        w.Write()
+        
+        #1B
+        w.SetFileName(dir+'1Bslines%s.vtp' % mem_num)
+        st.SetSourceData(grid1)  
+        st.SetIntegrationDirectionToBackward()
+        st.Update()
+        
+        w.SetInputConnection(st.GetOutputPort())
+        w.Update()
+        w.Write()
+        
+        #2F
+        w.SetFileName(dir+'2Fslines%s.vtp' % mem_num)
+        st.SetSourceData(grid2)
+        st.SetIntegrationDirectionToForward()
+        st.Update()
+        
+        w.SetInputConnection(st.GetOutputPort())
+        w.Update()
+        w.Write()
+        
+        #2B
+        w.SetFileName(dir+'2Bslines%s.vtp' % mem_num)
+        st.SetSourceData(grid2)
+        st.SetIntegrationDirectionToBackward()
+        st.Update()
+        
+        w.SetInputConnection(st.GetOutputPort())
+        w.Update()
+        w.Write()
+        
+        
+       
+        
+        
+        
         '''    
         line = st.GetOutput().NewInstance()
         line.ShallowCopy(st.GetOutput())
@@ -198,6 +246,4 @@ if __name__ == '__main__':
         #numpy.savetxt('./out/x_member_%d.txt' % grank, fpts_x)
         #numpy.savetxt('./out/y_member_%d.txt' % grank, fpts_y)
         
-        w.SetInputConnection(st.GetOutputPort())
-        w.Update()
-        w.Write()
+       
