@@ -51,30 +51,6 @@ EXT_X = 127
 EXT_Y = 127
 ROOT = '../../../'
 
-def calcPCA(xarray, yarray):
-    ''' Returns the eigenvalue the covariance matrix for the terminal particle 
-        positions. 
-    '''
-    
-    datasetTable = vtk.vtkTable()
-    datasetTable.AddColumn(xarray)
-    datasetTable.AddColumn(yarray)
-    
-    pcaStatistics = vtk.vtkPCAStatistics()
-    
-    pcaStatistics.SetInputData( vtk.vtkStatisticsAlgorithm.INPUT_DATA, datasetTable )
-    
-    pcaStatistics.SetColumnStatus('x', 1 )
-    pcaStatistics.SetColumnStatus('y', 1 )
-    pcaStatistics.RequestSelectedColumns()
-    pcaStatistics.SetDeriveOption(True)
-    pcaStatistics.Update()
-     
-    eigenvalues = vtk.vtkDoubleArray()
-    pcaStatistics.GetEigenvalues(eigenvalues)
-    
-    return eigenvalues.GetValue(0)
-
 if __name__ == '__main__':
     
     wc = vtk.vtkMPIController()
