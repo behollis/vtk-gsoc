@@ -36,15 +36,34 @@ def ftpDisconnect(ftp, trans):
     ftp.close()
     trans.close()
 
-def ftpFile(subdir, file, ftp):
+def ftpFile(subdir,subsubxdir, subsubydir, file, ftp):
     print 'Ftp-ing: ' + str(file)
 
-    path = '/external/avis/data/lockst/' 
+    path = '/external/avis/data/lockst2/' 
     try:
         ftp.mkdir(path, mode=511)
     except:
         print 'directy already exists...'
+        
+    path += 'ts00050/' 
+    try:
+        ftp.mkdir(path, mode=511)
+    except:
+        print 'directy already exists...'
+        
     path += subdir
+    try:
+        ftp.mkdir(path, mode=511)
+    except:
+        print 'directory already exists...'
+        
+    path += subsubxdir
+    try:
+        ftp.mkdir(path, mode=511)
+    except:
+        print 'directory already exists...'
+        
+    path += subsubydir
     try:
         ftp.mkdir(path, mode=511)
     except:
@@ -58,6 +77,8 @@ PASSWORD = ''
 if __name__ == '__main__':
     
     global PASSWORD
+    
+    print sys.argv[1]
 
     try:
         ASG = sys.argv[1]
@@ -74,24 +95,51 @@ if __name__ == '__main__':
 
     ftp, trans = ftpConnect()
 
-    for d in dirs:
+    for mem_dir in dirs:
         try:
-            os.chdir(d)
+            os.chdir(mem_dir)
         except:
-            print 'Directory error for: ' + str(d)
+            print 'Directory error for: ' + str(mem_dir)
             continue
         
-        ls = Popen(['ls'], stdout=PIPE)
-        vtp_list = ls.communicate()[0].split('\n')
+        #enter streamline dir
+        ls0 = Popen(['ls'], stdout=PIPE)
+        seed_list_x = ls0.communicate()[0].split('\n')
         
-        for vtp in vtp_list:
-            try:
-                 ftpFile(d,vtp, ftp)
-            except:
-                print 'sFTP error for: ' + str(vtp)
-                continue
+        for seed_dir_x in seed_list_x:
             
-        os.chdir('..')
+            try:
+                os.chdir(seed_dir_x)
+            except:
+                print 'Directory error for: ' + str(seed_dir_x)
+                continue
+        
+            ls1 = Popen(['ls'], stdout=PIPE)
+            seed_list_y = ls1.communicate()[0].split('\n')
+            
+            for seed_dir_y in seed_list_y:
+            
+                try:
+                    os.chdir(seed_dir_y)
+                except:
+                    print 'Directory error for: ' + str(seed_dir_y)
+                    continue
+            
+                ls2 = Popen(['ls'], stdout=PIPE)
+                vtp_list = ls2.communicate()[0].split('\n')
+                
+                for vtp in vtp_list:
+                    try:
+                         ftpFile('mem'+mem_dir+'/', seed_dir_x+'/', seed_dir_y+'/', vtp, ftp)
+                    except:
+                        print 'sFTP error for: ' + str(vtp)
+                        continue
+                    
+                os.chdir('..') #go to next y dir
+                
+            os.chdir('..') # go to next x dir
+            
+        os.chdir('..') # go to next member
 
     ftpDisconnect(ftp,trans)
 
