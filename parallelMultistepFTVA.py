@@ -1,5 +1,8 @@
 import numpy
 import vtk
+import os
+import sys
+from subprocess import *
 
 def calcPCA(xarray, yarray):
     ''' Returns the eigenvalue of the covariance matrix for the terminal particle 
@@ -25,29 +28,82 @@ def calcPCA(xarray, yarray):
     
     return eigenvalues.GetValue(0)
 
-if __name__ == '__main__':
+
+def readStreamline(stfile,stlst_f, stlst_b):
     
     reader = vtk.vtkXMLPolyDataReader()
-    reader.SetFileName('/home/behollis/lockExchangeStreamlinesTs0050/0/1Bslines0000.vtp');
-    reader.Update();
-    
+    reader.SetFileName(stfile)
+    reader.Update()
+
+    #one streamline per vtp
     vtkPolyData_vtp = reader.GetOutput()
-    sl_count = vtkPolyData_vtp.GetNumberOfCells()
     
-    for sl_id in range(0,sl_count):
-        vtkPolyLine_sl = vtkPolyData_vtp.GetCell(sl_id)
-        vtkPoints_sl = vtkPolyLine_sl.GetPoints()
-        
-        # verify seed 
-        print vtkPoints_sl.GetPoint(0)
-    
-    vtkPolyLine_sl = vtkPolyData_vtp.GetCell(10)
+    #forward sl
+    vtkPolyLine_sl = vtkPolyData_vtp.GetCell(0)
     vtkPoints_pts = vtkPolyLine_sl.GetPoints()
-    sl_num_pts = vtkPoints_pts.GetNumberOfPoints()
     
-    for pt_id in range(0,sl_num_pts):
-        pt_tuple = vtkPoints_pts.GetPoint(pt_id)
-        print 'streamline: ' + str(10) + ' point id: ' + str(pt_id) + ': position: ' + str(pt_tuple)
+    stlst_f.append(vtkPoints_pts)
+    
+    #backward sl
+    vtkPolyLine_sl = vtkPolyData_vtp.GetCell(1)
+    vtkPoints_pts = vtkPolyLine_sl.GetPoints()
+    
+    stlst_b.append(vtkPoints_pts)
+   
+
+def collectEnsembleStreamlines(x, y, stlst_f, stlst_b):
+    ''' Read all points for each streamline thru a seed for the ensemble. '''
+    
+    os.chdir(PATH)
+    ls_output = Popen(['ls'], stdout=PIPE)
+
+    #print ls_output.communicate()
+    dirs = ls_output.communicate()[0].split('\n')
+    
+    for mem_dir in dirs:
+        try:
+            os.chdir( mem_dir + '/x' + str(x).zfill(3) + '/y' + str(y).zfill(3) )
+        except:
+            print 'Directory error for: ' + str(mem_dir)
+            continue
+        
+        
+        ls = Popen(['ls'], stdout=PIPE)
+        vtps = list()
+        for f in ls.communicate()[0].split('\n'):
+            if '.vtp' in f:
+                vtps.append(f)
+        
+        readStreamline(vtps[0], stlst_f, stlst_b)
+                 
+        os.chdir('../../..') # go to next member
+    
+def performStats(x,y):
+    print 'performing stats on: ' + str(x) + ', ' + str(y)
+    return
+    
+def main():
+    for x in range(40,X_EXT):
+        for y in range(40, Y_EXT):
+            collectEnsembleStreamlines(x, y, SEED_STREAMLINES_F, SEED_STREAMLINES_B)
+            performStats(x,y,SEED_STREAMLINES_F, SEED_STREAMLINES_B)
+            del SEED_STREAMLINES_F[:]; del SEED_STREAMLINES_B[:]
+            
+if __name__ == '__main__':
+    PATH = '/home/behollis/lockExSt/ts00050/'
+    SEED_STREAMLINES_F = list()
+    SEED_STREAMLINES_B = list()
+    X_EXT = 127
+    Y_EXT = 127
+    
+    main()
+    
+    
+    
+    
+    
+    
+
     
     
     
