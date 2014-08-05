@@ -4,7 +4,7 @@ PREFIX_U = 'u_r_'
 PREFIX_V = 'v_r_'
 PREFIX_RHO = 'rho_r_'
 
-PATH = '/home/behollis/DATA/in/ts00050/'
+PATH = '/home/data3/DATA/in/ts00050/'
 
 '''
 Lock-exchange data parameters.

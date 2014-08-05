@@ -117,8 +117,12 @@ def performStats(x,y,st_f, st_b):
          
             comp2_array.SetName( 'y' )
             comp2_array.InsertNextValue(pt_tuple[1])
-                
-        var = calcPCA(comp1_array, comp2_array)
+         
+        try:       
+            var = calcPCA(comp1_array, comp2_array)
+        except:
+            print 'PCA couldn\'t be calculated'
+            var = -1 
         
         #print 'writing ftva @ step: ' + str(pt_id) + ' for: ' + str(x) + ' ' + str(y)
         out.write(str(var)+'\n')
@@ -163,10 +167,10 @@ if __name__ == '__main__':
     localGroup = grank / localSize
     
     # using four cores
-    B_OFFSET = 10
-    E_OFFSET = 10
+    B_OFFSET = 20
+    E_OFFSET = 20
     X_STR = 10; Y_STR = 10
-    X_END = X_EXT - 10; Y_END = Y_EXT - 10
+    X_END = X_EXT - 20; Y_END = Y_EXT - 20
     
     if grank == 0:
         X_STR = B_OFFSET

@@ -21,6 +21,7 @@ class EnsembleReader(vta.VTKAlgorithm):
         contr = vtk.vtkMPIController()
         rank = contr.GetLocalProcessId()
         u, v, self.Rho = memberReader.readMember(self.Index)
+        print 'reading member: ' + str(self.Index)
         npts = u.shape[0] * u.shape[1]
 
         self.Vel = numpy.zeros((npts,3))
@@ -41,17 +42,14 @@ class EnsembleReader(vta.VTKAlgorithm):
         
         return 1
 
-# mpiexec -n <NUM_CORES> pvtkpython parallelEnsemble.py
-
-NUM_CORES = 12
-MEMBERS = NUM_CORES * 83
+NUM_CORES = 24
+MEMBERS = NUM_CORES * 42 
 SLICE = MEMBERS / NUM_CORES #division of members per thread
 EXT_X = 127
 EXT_Y = 127
-ROOT = '/home/behollis/'
+DATA_ROOT = '/home/data3/'
 
 if __name__ == '__main__':
-    
     wc = vtk.vtkMPIController()
     gsize = wc.GetNumberOfProcesses()
     grank = wc.GetLocalProcessId()
@@ -90,15 +88,7 @@ if __name__ == '__main__':
     st.SetController(vtk.vtkDummyController())
     st.SetInputArrayToProcess(0, 0, 0, vtk.vtkDataObject.FIELD_ASSOCIATION_POINTS, "velocity")
     st.SetInputData(r.GetOutputDataObject(0))
-    
-    '''
-    grid = vtk.vtkUnstructuredGrid()
-    pts = vtk.vtkPoints()
-    pts.InsertPoint(float(x),float(y),0.)   
-    grid.SetPoints(pts)
-    '''
    
-    #st.SetSourceConnection( pt.GetOutputPort() )
     st.SetMaximumPropagation(5000)
     st.SetMaximumNumberOfSteps(1000) 
     st.SetInitialIntegrationStep(0.2)
@@ -108,15 +98,21 @@ if __name__ == '__main__':
     st.SetIntegratorTypeToRungeKutta45()
     st.SetIntegrationDirectionToBoth()
     
-    dir = ROOT+'lockExSt/ts00050/'
+    dir = DATA_ROOT+'lockExSt/ts00050/'
     if not os.path.exists(dir):
         os.makedirs(dir)
         
-    for mem in range( grank*SLICE, (grank+1)*SLICE ):
+    for mem in range( grank*SLICE + 1, (grank+1)*SLICE + 1 ):
+        
+        # set current member
+        outInfo = r.GetOutputInformation(0)
+        outInfo.Set(vtk.vtkEnsembleSource.UPDATE_MEMBER(), mem)
+        r.Update()
+        
         print 'mem: ' + str(mem).zfill(4)
         for x in range(0,EXT_X):
             
-            sdir = dir + str(mem).zfill(4) + '/x' + str(x).zfill(3) 
+            sdir = dir + 'mem' + str(mem).zfill(4) + '/x' + str(x).zfill(3) 
             if not os.path.exists(sdir):
                 os.makedirs(sdir)
             
