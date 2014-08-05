@@ -38,13 +38,10 @@ def readStreamline(stfile,stlst_f, stlst_b):
     #one streamline per vtp
     vtkPolyData_vtp = reader.GetOutput()
     
-    '''
     #forward sl
-    vtkPolyLine_sl = vtkPolyData_vtp.GetCell(0)
-    vtkPoints_pts = vtkPolyLine_sl.GetPoints()
-    
-    stlst_f.append(vtkPoints_pts)
-    '''
+    #vtkPolyLine_sl = vtkPolyData_vtp.GetCell(0)
+    #vtkPoints_pts = vtkPolyLine_sl.GetPoints()
+    #stlst_f.append(vtkPoints_pts)
     
     #backward sl
     vtkPolyLine_sl = vtkPolyData_vtp.GetCell(1)
@@ -103,20 +100,24 @@ def performStats(x,y,st_f, st_b):
     #else:
     out = open('ftva.txt', 'w+')
     
-    for pt_id in range(0,1000, INTERVAL):
+    for pt_id in range(0,STEPS,INTERVAL):
         comp1_array = vtk.vtkDoubleArray()
         comp1_array.SetNumberOfComponents(1)
         comp2_array = vtk.vtkDoubleArray()
         comp2_array.SetNumberOfComponents(1)
         
         for line in st_b:
-            pt_tuple = line.GetPoint(pt_id)
-            
-            comp1_array.SetName( 'x' )
-            comp1_array.InsertNextValue(pt_tuple[0])
-         
-            comp2_array.SetName( 'y' )
-            comp2_array.InsertNextValue(pt_tuple[1])
+            try:
+                pt_tuple = line.GetPoint(pt_id)
+                
+                comp1_array.SetName( 'x' )
+                comp1_array.InsertNextValue(pt_tuple[0])
+             
+                comp2_array.SetName( 'y' )
+                comp2_array.InsertNextValue(pt_tuple[1])
+            except:
+                print 'missing points on member streamline: ' + str(line)
+                continue
          
         try:       
             var = calcPCA(comp1_array, comp2_array)
@@ -143,15 +144,15 @@ def main():
             
             
 if __name__ == '__main__':
-    PATH = '/home/behollis/lockExSt/ts00050/'
-    OUT_PATH = '/media/behollis/TOSHIBA EXT/'
+    PATH = '/home/behollis/data3/lockExSt/ts00050/'
+    OUT_PATH = '/media/behollis/nfs2/lockExSt/ts00050/'
     SEED_STREAMLINES_F = list()
     SEED_STREAMLINES_B = list()
+    
+    STEPS = 1000 # number of points on streamlines
     X_EXT = 125
     Y_EXT = 125
-    NUM_CORES = 4
-    SLICE = X_EXT / 2 #X_EXT / NUM_CORES #division of members per thread
-    
+    NUM_CORES = 25 # need this to be a squared integer
     SEED_RES = 1 # regularity of seed sampling for FTVA
     INTERVAL = 1 # interval of integration steps for multi-step FTVA
     
@@ -166,32 +167,22 @@ if __name__ == '__main__':
     localSize = gsize / NUM_CORES
     localGroup = grank / localSize
     
-    # using four cores
-    B_OFFSET = 20
-    E_OFFSET = 20
-    X_STR = 10; Y_STR = 10
-    X_END = X_EXT - 20; Y_END = Y_EXT - 20
+    # initialize offsets
+    BEGIN_OFFSET = 0
+    END_OFFSET = 0
+    X_STR = 0; Y_STR = 0
+    X_END = X_EXT; Y_END = Y_EXT 
     
-    if grank == 0:
-        X_STR = B_OFFSET
-        X_END = X_EXT / 2
-        Y_STR = B_OFFSET
-        Y_END = Y_EXT / 2
-    elif grank == 1:
-        X_STR = X_EXT / 2
-        X_END = X_EXT - E_OFFSET
-        Y_STR = B_OFFSET
-        Y_END = Y_EXT / 2
-    elif grank == 2:
-        X_STR = B_OFFSET
-        X_END = X_EXT / 2
-        Y_STR = Y_EXT / 2
-        Y_END = Y_EXT - E_OFFSET
-    else: #grank == 3:
-        X_STR = X_EXT / 2
-        X_END = X_EXT - E_OFFSET
-        Y_STR = Y_EXT / 2
-        Y_END = Y_EXT - E_OFFSET
+    DIV = NUM_CORES**0.5 # index for field block along each dimension
+    SLICE = X_EXT / DIV # x or y length in field dimension
+    
+    mod_x = grank % DIV # determine index along x dir for block
+    div_y = grank / DIV # determine index along y dir for block
+    
+    X_STR = mod_x * SLICE
+    X_END = (mod_x + 1) * SLICE
+    Y_STR = div_y * SLICE
+    Y_END = (div_y + 1) * SLICE
         
     main()
     
