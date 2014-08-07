@@ -208,7 +208,8 @@ if __name__ == '__main__':
     print '\tX_END: ' + str(X_END)
     print '\tY_STR: ' + str(Y_STR)
     print '\tY_END: ' + str(Y_END)
-    print 'grank finished: ' + str(grank)
         
     main()
+    
+    print 'grank finished: ' + str(grank)
     
