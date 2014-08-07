@@ -44,14 +44,19 @@ def readStreamline(stfile,stlst_f, stlst_b):
     #stlst_f.append(vtkPoints_pts)
     
     #backward sl
-    vtkPolyLine_sl = vtkPolyData_vtp.GetCell(1)
-    vtkPoints_pts = vtkPolyLine_sl.GetPoints()
-    
-    stlst_b.append(vtkPoints_pts)
-   
+    if vtkPolyData_vtp.GetNumberOfCells() >= 2:
+        vtkPolyLine_sl = vtkPolyData_vtp.GetCell(1)
+        vtkPoints_pts = vtkPolyLine_sl.GetPoints()
+        
+        stlst_b.append(vtkPoints_pts)
+    else:
+        pass
+        #print 'missing backward streamline for: ' + str(stfile)
 
 def collectEnsembleStreamlines(x, y, stlst_f, stlst_b):
-    ''' Read all points for each streamline thru a seed for the ensemble. '''
+    ''' 
+    Read all points for each streamline thru a seed for the ensemble. 
+    '''
     
     os.chdir(PATH)
     ls_output = Popen(['ls'], stdout=PIPE)
@@ -59,13 +64,14 @@ def collectEnsembleStreamlines(x, y, stlst_f, stlst_b):
     #print ls_output.communicate()
     dirs = ls_output.communicate()[0].split('\n')
     
-    for mem_dir in dirs:
+    for mem_dir in dirs[0:MEMBERS]:
         try:
             os.chdir( mem_dir + '/x' + str(x).zfill(3) + '/y' + str(y).zfill(3) )
         except:
-            print 'Directory error for: ' + str(mem_dir)
+            #print 'Directory error for: ' + str(mem_dir)
             continue
         
+        #print 'reading member: ' + str(mem_dir)
         
         try:
             ls = Popen(['ls'], stdout=PIPE)
@@ -78,6 +84,7 @@ def collectEnsembleStreamlines(x, y, stlst_f, stlst_b):
             if len(vtps) is not 0:
                 readStreamline(vtps[0], stlst_f, stlst_b)
         except:
+            #pass
             print 'Error reading streamline: ' + str(mem_dir)
                  
         os.chdir('../../..') # go to next member
@@ -100,61 +107,70 @@ def performStats(x,y,st_f, st_b):
     #else:
     out = open('ftva.txt', 'w+')
     
-    for pt_id in range(0,STEPS,INTERVAL):
-        comp1_array = vtk.vtkDoubleArray()
-        comp1_array.SetNumberOfComponents(1)
-        comp2_array = vtk.vtkDoubleArray()
-        comp2_array.SetNumberOfComponents(1)
-        
-        for line in st_b:
-            try:
-                pt_tuple = line.GetPoint(pt_id)
-                
-                comp1_array.SetName( 'x' )
-                comp1_array.InsertNextValue(pt_tuple[0])
+    #print 'number of streamlines: ' + str(len(st_b))
+    
+    if len(st_b) > 2:
+        for pt_id in range(0,STEPS,INTERVAL):
+            comp1_array = vtk.vtkDoubleArray()
+            comp1_array.SetNumberOfComponents(1)
+            comp2_array = vtk.vtkDoubleArray()
+            comp2_array.SetNumberOfComponents(1)
+            
+            for line in st_b:
+                try:
+                    pt_tuple = line.GetPoint(pt_id)
+                    
+                    comp1_array.SetName( 'x' )
+                    comp1_array.InsertNextValue(pt_tuple[0])
+                 
+                    comp2_array.SetName( 'y' )
+                    comp2_array.InsertNextValue(pt_tuple[1])
+                except:
+                    #print 'missing points on member streamline: ' + str(line)
+                    continue
              
-                comp2_array.SetName( 'y' )
-                comp2_array.InsertNextValue(pt_tuple[1])
+            try:       
+                var = calcPCA(comp1_array, comp2_array)
             except:
-                print 'missing points on member streamline: ' + str(line)
-                continue
-         
-        try:       
-            var = calcPCA(comp1_array, comp2_array)
-        except:
-            print 'PCA couldn\'t be calculated'
-            var = -1 
-        
-        #print 'writing ftva @ step: ' + str(pt_id) + ' for: ' + str(x) + ' ' + str(y)
-        out.write(str(var)+'\n')
-        
-    out.close()
+                #print 'PCA couldn\'t be calculated.'
+                var = -1 
+   
+            #print 'writing ftva @ step: ' + str(pt_id) + ' for: ' + str(x) + ' ' + str(y)
+            out.write(str(var)+'\n')
+            
+        out.close()
+    
+    else:
+        #print 'PCA couldn\'t be calculated, due to insufficent streamlines.'
+        var = -1 
     
     
 def main():
-    for x in range(X_STR, X_END, SEED_RES):
-        for y in range(Y_STR, Y_END, SEED_RES):
-            print 'collecting streamlines for: ' + str(x) + ' ' + str(y)
+    for x in range(X_STR+BEGIN_OFFSET, X_END-END_OFFSET, SEED_RES):
+        for y in range(Y_STR+BEGIN_OFFSET, Y_END-END_OFFSET, SEED_RES):
+            #print 'collecting streamlines for: ' + str(x) + ' ' + str(y)
             collectEnsembleStreamlines(x, y, SEED_STREAMLINES_F, SEED_STREAMLINES_B)
             try:
                 performStats(x,y,SEED_STREAMLINES_F, SEED_STREAMLINES_B)
             except:
+                #pass
                 print 'Error computing PCA for: ' + str(x) + ' ' + str(y)
             del SEED_STREAMLINES_F[:]; del SEED_STREAMLINES_B[:]
             
             
 if __name__ == '__main__':
-    PATH = '/home/behollis/data3/lockExSt/ts00050/'
-    OUT_PATH = '/media/behollis/nfs2/lockExSt/ts00050/'
+    PATH = '/home/data3/lockExSt/ts00050/'
+    OUT_PATH = '/home/nfs2/lockExSt/ts00050/'
     SEED_STREAMLINES_F = list()
     SEED_STREAMLINES_B = list()
     
     STEPS = 1000 # number of points on streamlines
-    X_EXT = 125
-    Y_EXT = 125
-    NUM_CORES = 25 # need this to be a squared integer
-    SEED_RES = 1 # regularity of seed sampling for FTVA
-    INTERVAL = 1 # interval of integration steps for multi-step FTVA
+    MEMBERS = 100
+    X_EXT = 31 * 4
+    Y_EXT = 31 * 4
+    NUM_CORES = 16 # need this to be a squared integer
+    SEED_RES = 2 # regularity of seed sampling for FTVA
+    INTERVAL = 5 # interval of integration steps for multi-step FTVA
     
     wc = vtk.vtkMPIController()
     gsize = wc.GetNumberOfProcesses()
@@ -167,13 +183,16 @@ if __name__ == '__main__':
     localSize = gsize / NUM_CORES
     localGroup = grank / localSize
     
+    #DEBUG, run as single process
+    #grank = 0
+    
     # initialize offsets
     BEGIN_OFFSET = 0
     END_OFFSET = 0
     X_STR = 0; Y_STR = 0
     X_END = X_EXT; Y_END = Y_EXT 
     
-    DIV = NUM_CORES**0.5 # index for field block along each dimension
+    DIV = int(NUM_CORES**0.5) # index for field block along each dimension
     SLICE = X_EXT / DIV # x or y length in field dimension
     
     mod_x = grank % DIV # determine index along x dir for block
@@ -183,16 +202,13 @@ if __name__ == '__main__':
     X_END = (mod_x + 1) * SLICE
     Y_STR = div_y * SLICE
     Y_END = (div_y + 1) * SLICE
+    
+    print 'grank starting: ' + str(grank)
+    print '\tX_STR: ' + str(X_STR)
+    print '\tX_END: ' + str(X_END)
+    print '\tY_STR: ' + str(Y_STR)
+    print '\tY_END: ' + str(Y_END)
+    print 'grank finished: ' + str(grank)
         
     main()
     
-    
-    
-    
-    
-    
-
-    
-    
-    
-       
