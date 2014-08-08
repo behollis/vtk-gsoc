@@ -33,10 +33,18 @@ def readStreamline(stfile,stlst_f, stlst_b):
     
     reader = vtk.vtkXMLPolyDataReader()
     reader.SetFileName(stfile)
-    reader.Update()
+    
+    try:
+        reader.Update()
+    except:
+        print 'Can\'t read vtp file.'
+        return
 
     #one streamline per vtp
-    vtkPolyData_vtp = reader.GetOutput()
+    try:
+        vtkPolyData_vtp = reader.GetOutput()
+    except:
+        print 'Can\'t read vtp file.'
     
     #forward sl
     #vtkPolyLine_sl = vtkPolyData_vtp.GetCell(0)
@@ -164,13 +172,13 @@ if __name__ == '__main__':
     SEED_STREAMLINES_F = list()
     SEED_STREAMLINES_B = list()
     
-    STEPS = 1000 # number of points on streamlines
+    STEPS = 200 # number of points on streamlines
     MEMBERS = 100
-    X_EXT = 31 * 4
-    Y_EXT = 31 * 4
-    NUM_CORES = 16 # need this to be a squared integer
-    SEED_RES = 2 # regularity of seed sampling for FTVA
-    INTERVAL = 5 # interval of integration steps for multi-step FTVA
+    X_EXT = 25 * 5
+    Y_EXT = 25 * 5
+    NUM_CORES = 26 # need this to be a squared integer
+    SEED_RES = 1 # regularity of seed sampling for FTVA
+    INTERVAL = 50 # interval of integration steps for multi-step FTVA
     
     wc = vtk.vtkMPIController()
     gsize = wc.GetNumberOfProcesses()
@@ -186,13 +194,17 @@ if __name__ == '__main__':
     #DEBUG, run as single process
     #grank = 0
     
+    if grank == 25:
+        print 'grank exit for: ' + str(grank)
+        exit()
+    
     # initialize offsets
     BEGIN_OFFSET = 0
     END_OFFSET = 0
     X_STR = 0; Y_STR = 0
     X_END = X_EXT; Y_END = Y_EXT 
     
-    DIV = int(NUM_CORES**0.5) # index for field block along each dimension
+    DIV = 5#int(NUM_CORES**0.5) # index for field block along each dimension
     SLICE = X_EXT / DIV # x or y length in field dimension
     
     mod_x = grank % DIV # determine index along x dir for block
