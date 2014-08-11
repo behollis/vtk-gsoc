@@ -30,7 +30,7 @@ def calcPCA(xarray, yarray):
 
 
 def readStreamline(stfile,stlst_f, stlst_b):
-    
+      
     reader = vtk.vtkXMLPolyDataReader()
     reader.SetFileName(stfile)
     
@@ -45,6 +45,7 @@ def readStreamline(stfile,stlst_f, stlst_b):
         vtkPolyData_vtp = reader.GetOutput()
     except:
         print 'Can\'t read vtp file.'
+        return
     
     #forward sl
     #vtkPolyLine_sl = vtkPolyData_vtp.GetCell(0)
@@ -65,60 +66,33 @@ def collectEnsembleStreamlines(x, y, stlst_f, stlst_b):
     ''' 
     Read all points for each streamline thru a seed for the ensemble. 
     '''
-    
-    os.chdir(PATH)
     ls_output = Popen(['ls'], stdout=PIPE)
-
-    #print ls_output.communicate()
     dirs = ls_output.communicate()[0].split('\n')
     
     for mem_dir in dirs[0:MEMBERS]:
-        try:
-            os.chdir( mem_dir + '/x' + str(x).zfill(3) + '/y' + str(y).zfill(3) )
-        except:
-            #print 'Directory error for: ' + str(mem_dir)
-            continue
-        
-        #print 'reading member: ' + str(mem_dir)
+        d = PATH + mem_dir + '/x' + str(x).zfill(3) + '/y' + str(y).zfill(3) +'/' 
         
         try:
-            ls = Popen(['ls'], stdout=PIPE)
-            vtps = list()
-            for f in ls.communicate()[0].split('\n'):
-                if '.vtp' in f:
-                    vtps.append(f)
-    
-            #print 'reading streamline: ' + str(mem_dir)
-            if len(vtps) is not 0:
-                readStreamline(vtps[0], stlst_f, stlst_b)
+            mem = mem_dir[3:]
+            path_file = d+'sline_M'+ mem +'_X'+str(x).zfill(3) + '_Y' + str(y).zfill(3) +'.vtp'
+            #if os.path.isfile(path_file):
+            readStreamline(path_file, stlst_f, stlst_b)
         except:
-            #pass
             print 'Error reading streamline: ' + str(mem_dir)
-                 
-        os.chdir('../../..') # go to next member
     
 def performStats(x,y,st_f, st_b):
-    #print 'performing stats on: ' + str(x) + ', ' + str(y)
+    print 'performing stats on: ' + str(x) + ', ' + str(y)
     
-    dir = OUT_PATH + 'ftva/x' + str(x).zfill(3) + '/y' + str(y).zfill(3) 
+    dir = OUT_PATH + 'ftva/x' + str(x).zfill(3) + '/y' + str(y).zfill(3) +'/' 
     if not os.path.exists(dir):
         os.makedirs(dir)
-    
-    os.chdir(dir)
-    
-    ls_output = Popen(['ls'], stdout=PIPE)
-    files = ls_output.communicate()[0].split('\n')
-    
-    out = None
-    #if 'ftva' in files:
-    #    out = open('ftva', 'a')
-    #else:
-    out = open('ftva.txt', 'w+')
-    
-    #print 'number of streamlines: ' + str(len(st_b))
+  
+    out = open(dir+'ftva.txt', 'w+')
     
     if len(st_b) > 2:
         for pt_id in range(0,STEPS,INTERVAL):
+            #print 'sline point: ' + str(pt_id)
+             
             comp1_array = vtk.vtkDoubleArray()
             comp1_array.SetNumberOfComponents(1)
             comp2_array = vtk.vtkDoubleArray()
@@ -143,7 +117,6 @@ def performStats(x,y,st_f, st_b):
                 #print 'PCA couldn\'t be calculated.'
                 var = -1 
    
-            #print 'writing ftva @ step: ' + str(pt_id) + ' for: ' + str(x) + ' ' + str(y)
             out.write(str(var)+'\n')
             
         out.close()
@@ -172,13 +145,13 @@ if __name__ == '__main__':
     SEED_STREAMLINES_F = list()
     SEED_STREAMLINES_B = list()
     
-    STEPS = 200 # number of points on streamlines
-    MEMBERS = 100
+    STEPS = 1000 # number of points on streamlines
+    MEMBERS = 999
     X_EXT = 25 * 5
     Y_EXT = 25 * 5
     NUM_CORES = 26 # need this to be a squared integer
     SEED_RES = 1 # regularity of seed sampling for FTVA
-    INTERVAL = 50 # interval of integration steps for multi-step FTVA
+    INTERVAL = 1 # interval of integration steps for multi-step FTVA
     
     wc = vtk.vtkMPIController()
     gsize = wc.GetNumberOfProcesses()
@@ -197,6 +170,8 @@ if __name__ == '__main__':
     if grank == 25:
         print 'grank exit for: ' + str(grank)
         exit()
+        
+    os.chdir(PATH)
     
     # initialize offsets
     BEGIN_OFFSET = 0
