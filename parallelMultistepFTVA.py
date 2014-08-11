@@ -129,7 +129,6 @@ def performStats(x,y,st_f, st_b):
 def main():
     for x in range(X_STR+BEGIN_OFFSET, X_END-END_OFFSET, SEED_RES):
         for y in range(Y_STR+BEGIN_OFFSET, Y_END-END_OFFSET, SEED_RES):
-            #print 'collecting streamlines for: ' + str(x) + ' ' + str(y)
             collectEnsembleStreamlines(x, y, SEED_STREAMLINES_F, SEED_STREAMLINES_B)
             try:
                 performStats(x,y,SEED_STREAMLINES_F, SEED_STREAMLINES_B)
