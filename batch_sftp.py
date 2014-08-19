@@ -18,7 +18,7 @@ def ftpConnect():
     
     global PASSWORD
     
-    host ='sundance.soe.ucsc.edu'
+    host ='moondance.soe.ucsc.edu'
     port = 22
 
     username = 'behollis'
@@ -39,7 +39,8 @@ def ftpDisconnect(ftp, trans):
 def ftpFile(subdir,subsubxdir, subsubydir, file, ftp):
     print 'Ftp-ing: ' + str(file)
 
-    path = '/external/avis/data/lockst2/' 
+    #path = '/external/avis/data/lockst2/' 
+    path = '.html/'
     try:
         ftp.mkdir(path, mode=511)
     except:
@@ -70,22 +71,17 @@ def ftpFile(subdir,subsubxdir, subsubydir, file, ftp):
         print 'directory already exists...'
         
     ftp.put(os.getcwd() + '/' + file, path+'/'+file)
-
+    
 
 PASSWORD = ''
 
 if __name__ == '__main__':
     
-    global PASSWORD
-    
-    print sys.argv[1]
-
     try:
         ASG = sys.argv[1]
         PASSWORD = str(sys.argv[2])
     except:
         print 'Usage: arg1 = path arg2 = ftp password'
-        
 
     os.chdir(ASG)
     ls_output = Popen(['ls'], stdout=PIPE)
@@ -94,8 +90,17 @@ if __name__ == '__main__':
     dirs = ls_output.communicate()[0].split('\n')
 
     ftp, trans = ftpConnect()
+    
+    #dirs.reverse()
 
     for mem_dir in dirs:
+        
+        #print mem_dir
+        
+        #if '734' in mem_dir:
+        #    print 'exiting on 734...'
+        #    exit()
+        
         try:
             os.chdir(mem_dir)
         except:
@@ -108,6 +113,11 @@ if __name__ == '__main__':
         
         for seed_dir_x in seed_list_x:
             
+            if 'x027' not in seed_dir_x and 'x029' not in seed_dir_x:
+                continue
+            
+            print 'got an x'
+            
             try:
                 os.chdir(seed_dir_x)
             except:
@@ -118,6 +128,11 @@ if __name__ == '__main__':
             seed_list_y = ls1.communicate()[0].split('\n')
             
             for seed_dir_y in seed_list_y:
+                
+                if 'y028' not in seed_dir_y and 'y030' not in seed_dir_y:
+                    continue
+                
+                print 'got a y'
             
                 try:
                     os.chdir(seed_dir_y)
@@ -130,7 +145,7 @@ if __name__ == '__main__':
                 
                 for vtp in vtp_list:
                     try:
-                         ftpFile('mem'+mem_dir+'/', seed_dir_x+'/', seed_dir_y+'/', vtp, ftp)
+                         ftpFile(mem_dir+'/', seed_dir_x+'/', seed_dir_y+'/', vtp, ftp)
                     except:
                         print 'sFTP error for: ' + str(vtp)
                         continue
