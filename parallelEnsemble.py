@@ -5,6 +5,7 @@ from vtk.util import vtkAlgorithm as vta
 import vtk
 import sys
 import os
+from mpi4py import MPI
 
 
 class EnsembleReader(vta.VTKAlgorithm):
@@ -42,14 +43,32 @@ class EnsembleReader(vta.VTKAlgorithm):
         
         return 1
 
-NUM_CORES = 24
-MEMBERS = NUM_CORES * 42 
+NUM_CORES = 4#20
+MEMBERS = NUM_CORES * 5
 SLICE = MEMBERS / NUM_CORES #division of members per thread
 EXT_X = 127
 EXT_Y = 127
-DATA_ROOT = '/home/data3/'
+DATA_ROOT = '/home/data_local/'
 
+#c = vtk.vtkMultiProcessController.GetGlobalController()
+#comm = vtk.vtkMPI4PyCommunicator.ConvertToPython(c.GetCommunicator())
+
+
+
+def initRemainingMems():
+    ''' Init unprocessed members for seeds counter.
+    '''
+    seeds = dict()
+    for m in range(0,MEMBERS):
+        for x in range(0,2):#EXT_X):
+            for y in range(0,2):#EXT_Y):
+                #unprocessed members
+                seeds[(x,y)] = MEMBERS
+                
+    return seeds
+            
 if __name__ == '__main__':
+    '''
     wc = vtk.vtkMPIController()
     gsize = wc.GetNumberOfProcesses()
     grank = wc.GetLocalProcessId()
@@ -57,10 +76,27 @@ if __name__ == '__main__':
         if grank == 0:
             print 'Only an even number of ranks is support'
         sys.exit(0)
-   
-    localSize = gsize / NUM_CORES
-    localGroup = grank / localSize
+    '''
     
+    comm = MPI.COMM_WORLD
+    grank = comm.Get_rank()
+   
+    #localSize = gsize / NUM_CORES
+    #localGroup = grank / localSize
+    
+    #http://mpi4py.scipy.org/docs/usrman/tutorial.html#collective-communication
+    
+    if grank == 0:
+        #wc.Initialize()
+        mem_seeds = initRemainingMems()
+        mem_seeds = comm.bcast(mem_seeds, root=0)
+    else:
+        mem_seeds = None
+    
+    print 'grank: ' + str(grank)
+    print mem_seeds
+    
+    '''
     r = vtk.vtkEnsembleSource()
     
     table = vtk.vtkTable()
@@ -89,14 +125,15 @@ if __name__ == '__main__':
     st.SetInputArrayToProcess(0, 0, 0, vtk.vtkDataObject.FIELD_ASSOCIATION_POINTS, "velocity")
     st.SetInputData(r.GetOutputDataObject(0))
    
-    st.SetMaximumPropagation(5000)
-    st.SetMaximumNumberOfSteps(1000) 
+    st.SetMaximumPropagation(500)
+    st.SetMaximumNumberOfSteps(200) 
     st.SetInitialIntegrationStep(0.2)
     st.SetMinimumIntegrationStep(0.1)
     st.SetMaximumIntegrationStep(0.2)
-    st.SetTerminalSpeed(0.000001)
+    st.SetTerminalSpeed(0.001)
     st.SetIntegratorTypeToRungeKutta45()
-    st.SetIntegrationDirectionToBoth()
+    st.SetIntegrationDirection(BACKWARD)
+    st.SetComputeVorticity(false)
     
     dir = DATA_ROOT+'lockExSt/ts00050/'
     if not os.path.exists(dir):
@@ -142,3 +179,6 @@ if __name__ == '__main__':
                 w.Write()
                 
                 os.chdir('..')
+                
+    '''
+    #wc.Finalize()

@@ -2,6 +2,7 @@ import numpy
 import vtk
 import os
 import sys
+import time
 from subprocess import *
 
 def calcPCA(xarray, yarray):
@@ -66,6 +67,7 @@ def collectEnsembleStreamlines(x, y, stlst_f, stlst_b):
     ''' 
     Read all points for each streamline thru a seed for the ensemble. 
     '''
+    
     ls_output = Popen(['ls'], stdout=PIPE)
     dirs = ls_output.communicate()[0].split('\n')
     
@@ -79,6 +81,7 @@ def collectEnsembleStreamlines(x, y, stlst_f, stlst_b):
             readStreamline(path_file, stlst_f, stlst_b)
         except:
             print 'Error reading streamline: ' + str(mem_dir)
+            
     
 def performStats(x,y,st_f, st_b):
     print 'performing stats on: ' + str(x) + ', ' + str(y)
@@ -127,11 +130,19 @@ def performStats(x,y,st_f, st_b):
     
     
 def main():
-    for x in range(X_STR+BEGIN_OFFSET, X_END-END_OFFSET, SEED_RES):
-        for y in range(Y_STR+BEGIN_OFFSET, Y_END-END_OFFSET, SEED_RES):
+    #for x in range(X_STR+BEGIN_OFFSET, X_END-END_OFFSET, SEED_RES):
+    for x in range(29, 30):
+        #for y in range(Y_STR+BEGIN_OFFSET, Y_END-END_OFFSET, SEED_RES):
+        for y in range(30, 31):
+            st1 = time.time()
             collectEnsembleStreamlines(x, y, SEED_STREAMLINES_F, SEED_STREAMLINES_B)
+            end1 = time.time()
+            print 'load time: ' + str(end1 - st1)
             try:
+                st2 = time.time()
                 performStats(x,y,SEED_STREAMLINES_F, SEED_STREAMLINES_B)
+                end2 = time.time()
+                print 'stats compute time: ' + str(end2 - st2)
             except:
                 #pass
                 print 'Error computing PCA for: ' + str(x) + ' ' + str(y)
@@ -152,6 +163,7 @@ if __name__ == '__main__':
     SEED_RES = 1 # regularity of seed sampling for FTVA
     INTERVAL = 1 # interval of integration steps for multi-step FTVA
     
+    '''
     wc = vtk.vtkMPIController()
     gsize = wc.GetNumberOfProcesses()
     grank = wc.GetLocalProcessId()
@@ -162,14 +174,17 @@ if __name__ == '__main__':
     
     localSize = gsize / NUM_CORES
     localGroup = grank / localSize
+    '''
     
     #DEBUG, run as single process
-    #grank = 0
+    grank = 0
     
+    '''
     if grank == 25:
         print 'grank exit for: ' + str(grank)
         exit()
-        
+    '''
+            
     os.chdir(PATH)
     
     # initialize offsets
