@@ -5,7 +5,8 @@ from vtk.util import vtkAlgorithm as vta
 import vtk
 import sys
 import os
-from mpi4py import MPI
+#from mpi4py import MPI
+import h5py
 
 
 class EnsembleReader(vta.VTKAlgorithm):
@@ -43,60 +44,35 @@ class EnsembleReader(vta.VTKAlgorithm):
         
         return 1
 
-NUM_CORES = 4#20
-MEMBERS = NUM_CORES * 5
-SLICE = MEMBERS / NUM_CORES #division of members per thread
-EXT_X = 127
-EXT_Y = 127
-DATA_ROOT = '/home/data_local/'
-
-#c = vtk.vtkMultiProcessController.GetGlobalController()
-#comm = vtk.vtkMPI4PyCommunicator.ConvertToPython(c.GetCommunicator())
-
-
-
-def initRemainingMems():
-    ''' Init unprocessed members for seeds counter.
-    '''
-    seeds = dict()
-    for m in range(0,MEMBERS):
-        for x in range(0,2):#EXT_X):
-            for y in range(0,2):#EXT_Y):
-                #unprocessed members
-                seeds[(x,y)] = MEMBERS
-                
-    return seeds
+NUM_CORES_PER_NODE = 5
+NUM_NODES = 3
+MEMBERS = 1000
+SLICE = MEMBERS / NUM_CORES_PER_NODE #division of members per thread
+EXT_X = 125
+EXT_Y = 125
+DATA_ROOT = '/home/behollis/DATA/out/'
             
 if __name__ == '__main__':
-    '''
+    
     wc = vtk.vtkMPIController()
+    
     gsize = wc.GetNumberOfProcesses()
     grank = wc.GetLocalProcessId()
     if gsize % 2 != 0:
         if grank == 0:
             print 'Only an even number of ranks is support'
         sys.exit(0)
-    '''
+        
+    if grank == 1:
+        print 'terminating process #1'
+        exit()
     
-    comm = MPI.COMM_WORLD
-    grank = comm.Get_rank()
-   
-    #localSize = gsize / NUM_CORES
-    #localGroup = grank / localSize
+    grank = 0
+    gsize = 1
+    localSize = gsize / NUM_CORES_PER_NODE
+    localGroup = 0#grank / localSize
+    SLICE = 2; MEMBERS = 20
     
-    #http://mpi4py.scipy.org/docs/usrman/tutorial.html#collective-communication
-    
-    if grank == 0:
-        #wc.Initialize()
-        mem_seeds = initRemainingMems()
-        mem_seeds = comm.bcast(mem_seeds, root=0)
-    else:
-        mem_seeds = None
-    
-    print 'grank: ' + str(grank)
-    print mem_seeds
-    
-    '''
     r = vtk.vtkEnsembleSource()
     
     table = vtk.vtkTable()
@@ -121,7 +97,8 @@ if __name__ == '__main__':
     r.Update()
    
     st = vtk.vtkStreamTracer()
-    st.SetController(vtk.vtkDummyController())
+    
+    #st.SetController(vtk.vtkDummyController())
     st.SetInputArrayToProcess(0, 0, 0, vtk.vtkDataObject.FIELD_ASSOCIATION_POINTS, "velocity")
     st.SetInputData(r.GetOutputDataObject(0))
    
@@ -132,53 +109,117 @@ if __name__ == '__main__':
     st.SetMaximumIntegrationStep(0.2)
     st.SetTerminalSpeed(0.001)
     st.SetIntegratorTypeToRungeKutta45()
-    st.SetIntegrationDirection(BACKWARD)
-    st.SetComputeVorticity(false)
+    st.SetIntegrationDirection( vtk.vtkStreamTracer.BACKWARD )
+    st.SetComputeVorticity(False)
     
     dir = DATA_ROOT+'lockExSt/ts00050/'
     if not os.path.exists(dir):
         os.makedirs(dir)
         
-    for mem in range( grank*SLICE + 1, (grank+1)*SLICE + 1 ):
+    #determine node
+    node = grank / NUM_CORES_PER_NODE
+    print 'node: ' + str(node)
+    
+    fname = str(node) + '.hdf5'
+    f = h5py.File( dir+fname, 'w' )
         
+    lrank = grank % NUM_CORES_PER_NODE
+    
+    #fill out grid of seeds for streamtracer
+    colcells = EXT_Y 
+    
+    grid = vtk.vtkUnstructuredGrid()        
+    pts = vtk.vtkPoints()
+    
+    #tot_pts = 0
+    for x in range(node,int((node+1)*EXT_X/3.) + 1): 
+        for y in range(node,(node+1)*EXT_Y + 1):
+            print x
+            print y
+            #id = y + (y * x)
+            
+            #id = x + (y * rowcells)
+            #cell_id = y + (x * colcells) 
+            #print 'cell_id for pts ids: ' + str(cell_id)
+            #pts.InsertPoint(cell_id, float(x),float(y),0.)
+            #print 'pt id: ' + str(tot_pts)
+            #tot_pts += 1
+            pts.InsertNextPoint(float(x),float(y),0.)  
+            #id += 1 
+           
+            
+    grid.SetPoints(pts)
+    st.SetSourceData(grid)  
+    
+    w = vtk.vtkPolyDataWriter()
+    w.SetInputConnection( st.GetOutputPort() )
+    
+    #generate streamlines for each slice of the corresponding member vector field
+    for mem in range( lrank*SLICE + 1, (lrank+1)*SLICE + 1 ):
         # set current member
         outInfo = r.GetOutputInformation(0)
         outInfo.Set(vtk.vtkEnsembleSource.UPDATE_MEMBER(), mem)
         r.Update()
         
-        print 'mem: ' + str(mem).zfill(4)
-        for x in range(0,EXT_X):
-            
-            sdir = dir + 'mem' + str(mem).zfill(4) + '/x' + str(x).zfill(3) 
-            if not os.path.exists(sdir):
-                os.makedirs(sdir)
-            
-            os.chdir(sdir)
-            
-            for y in range(0,EXT_Y):
+        st.Update()
+        
+        w.Update()
+        vtkPolyData_vtp = w.GetInput()
+        
+        #print 'polydata num cells: ' + str(vtkPolyData_vtp.GetNumberCells())
+        
+        print 'node %d' % node
+        print 'EXT_X ' + str(int(EXT_X/3.))
+        
+        #cnt = vtkPolyData_vtp.GetNumberOfCells()
+        #print 'number of cells: ' + str(cnt)
+        
+        for x in range(node,int((node+1)*EXT_X/3.)): 
+            for y in range(node,(node+1)*EXT_Y):
+        
+                cell_id = y + (x * colcells) 
                 
-                ssdir = sdir + '/y' + str(y).zfill(3) 
-                if not os.path.exists(ssdir):
-                    os.makedirs(ssdir)
-            
-                os.chdir(ssdir)
-    
-                w = vtk.vtkXMLPolyDataWriter()
-                grid = vtk.vtkUnstructuredGrid()
-                pts = vtk.vtkPoints()
-            
-                pts.InsertNextPoint(float(x),float(y),0.)   
-                grid.SetPoints(pts)
+                print 'cell_id: ' + str(cell_id)
                 
-                w.SetFileName('sline_M' + str(mem).zfill(4) + '_X' + str(x).zfill(3) + '_Y' + str(y).zfill(3) +'.vtp')
-                st.SetSourceData(grid)  
-                st.Update()
-    
-                w.SetInputConnection(st.GetOutputPort())
-                w.Update()
-                w.Write()
+                try:
+                    vtkPolyLine_sl = vtkPolyData_vtp.GetCell( cell_id )
+                    
+                    #if id > 40:
+                    #    exit()
+                   
+                    #vtkPolyLine_sl = vtkPolyData_vtp.GetNextCell()
                 
-                os.chdir('..')
                 
-    '''
-    #wc.Finalize()
+                    vtkPoints_pts = vtkPolyLine_sl.GetPoints()
+                    
+                    
+                    
+                    #copy streamline points to numpy array
+                    num_pts = vtkPoints_pts.GetNumberOfPoints()
+                    slnp = numpy.ndarray(shape=(2,num_pts))
+                    for pt_id in range(0,num_pts):
+                        
+                        pt_tuple = vtkPoints_pts.GetPoint(pt_id)
+                        slnp[0][pt_id] = pt_tuple[0]
+                        slnp[1][pt_id] = pt_tuple[1]
+                        
+                        if pt_id == 0:
+                            #print 'id: ' + str(id)
+                            x = int(pt_tuple[0])
+                            y = int(pt_tuple[1])
+                            dir = '/mem' + str(mem).zfill(4) + '/x' + str(x).zfill(3) + '/y' + str(y).zfill(3) 
+                        
+                        #print pt_tuple
+                        
+                    #id += 1
+                        
+                    #print dir
+                    
+                    f[dir] = slnp
+                except:
+                    #exit()
+                    print 'missing cell id: ' + str(cell_id)
+                    continue
+                
+                
+                

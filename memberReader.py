@@ -4,7 +4,7 @@ PREFIX_U = 'u_r_'
 PREFIX_V = 'v_r_'
 PREFIX_RHO = 'rho_r_'
 
-PATH = '/home/data3/DATA/in/ts00050/'
+PATH = '/home/behollis/DATA/in/ts00050/'
 
 '''
 Lock-exchange data parameters.
@@ -40,5 +40,5 @@ def readMember(mem):
     
 if __name__ == '__main__':
     ''' Reads one ensemble member, (u,v) and density. '''
-    mem01 = readMember(1)
+    mem01 = readMember(10)
     
