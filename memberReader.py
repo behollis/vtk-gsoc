@@ -28,15 +28,15 @@ def readMember(mem):
     ''' Read numpy matrix from disk and return tuple of realization data. '''
     filename_u = PREFIX_U + str(mem) + '.txt'
     filename_v = PREFIX_V + str(mem) + '.txt'
-    filename_rho = PREFIX_RHO + str(mem) + '.txt'
+    #filename_rho = PREFIX_RHO + str(mem) + '.txt'
     
     u = genfromtxt(PATH + filename_u)
     u = -1.0*u[0:127,0:127]
     
     v = genfromtxt(PATH + filename_v)
-    rho = genfromtxt(PATH + filename_rho)
+    #rho = genfromtxt(PATH + filename_rho)
     
-    return (u, v, rho)
+    return (u, v)# , rho)
     
 if __name__ == '__main__':
     ''' Reads one ensemble member, (u,v) and density. '''
