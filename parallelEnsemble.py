@@ -100,7 +100,7 @@ if __name__ == '__main__':
     st.SetInputData(r.GetOutputDataObject(0))
    
     st.SetMaximumPropagation(500)
-    st.SetMaximumNumberOfSteps(200) 
+    st.SetMaximumNumberOfSteps(500) 
     st.SetInitialIntegrationStep(0.2)
     st.SetMinimumIntegrationStep(0.1)
     st.SetMaximumIntegrationStep(0.2)
@@ -114,7 +114,7 @@ if __name__ == '__main__':
         os.makedirs(dir)
         
     #determine node
-    node = grank / NUM_CORES_PER_NODE
+    node = 0#grank / NUM_CORES_PER_NODE
     print 'node: ' + str(node)
     
     fname = str(node) + '.' + str(grank) + '.hdf5'

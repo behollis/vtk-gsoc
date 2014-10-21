@@ -43,18 +43,18 @@ def calcPCA(xarray, yarray):
     return eigenvalues
   
 def main(dset):
-    for x in range( 0, X_EXT ):
+    for x in range( node*(X_EXT/3), (node+1)*(X_EXT/3)+1 ): #range( 0, X_EXT ):
         if rank == 1:
             print 'x: ' + str(x)
-        for y in range( rank*SLICE_Y + 5, (rank+1)*SLICE_Y ):
+        for y in range( rank*SLICE_Y, (rank+1)*SLICE_Y ):
                         
             xarray = vtk.vtkFloatArray()
             xarray.SetName( 'x' )
             yarray = vtk.vtkFloatArray()
             yarray.SetName( 'y' )
             
-            for step in range(0,STEPS):
-                for mem in range( 1, 20):#150):
+            for step in range(0,STEPS,INTERVAL):
+                for mem in range( 1, 150):#MEMBERS, MINTERVAL):
                     dir = '/mem' + str(mem).zfill(4) + '/x' + str(x).zfill(3) + '/y' + str(y).zfill(3)
                   
                     #print 'step: ' + str(step)
@@ -80,35 +80,36 @@ def main(dset):
                     
                 #get PCA for this step...
                 evals = calcPCA(xarray, yarray)
-                majeval = 0
-                #try:
-                majeval = evals.GetValue(0)
-                #except:
-                #print 'evals.GetValue(0) failed'
+                majeval = 0.0
+                try:
+                    majeval = evals.GetValue(0)
+                except:
+                    print 'missing majeval'
+                    
+                if step % INTERVAL == 0:
+                    dset[x,y,step/INTERVAL] = majeval
                 
-                #dir = '/x' + str(x).zfill(3) + '/y' + str(y).zfill(3) + \
-                #    '/z' + str(step).zfill(3)
-                #if rank == 1:
-                #    print 'majeval: ' + str(majeval)
-                #    print 'step: ' + str(step)
-                dset[x][y][step] = int(rank)#float(majeval)
-                
-                #print 'for x={0} y={1} step={2}: {3}'.format(x, y, step, majeval) 
        
-NUM_PROC = 6
+NUM_PROC = 6 #number of processes / cores per node
 NUM_NODES = 1
-X_EXT = 10#125.0
-Y_EXT = 60 
+X_EXT = 125
+Y_EXT = 125 
 SLICE_Y = int( Y_EXT / float( NUM_PROC ) )
-SLICE_X = int ( X_EXT / float( NUM_NODES) )
-STEPS = 10
-INTERVAL = 50
+SLICE_X = int ( X_EXT / float( NUM_NODES ) )
+STEPS = 300
+INTERVAL = 10
+MEMBERS = 1000
+MINTERVAL = 100
         
 if __name__ == '__main__':
     
     comm = MPI.COMM_WORLD
     rank = comm.rank
     #rank = 0
+    
+    #determine node
+    node = 0#rank / NUM_PROC
+    print 'node: ' + str(node)
     
     #print 'reading hdf5 file...'
     f0 = h5py.File(DPATH+'0.0.hdf5', 'r', driver='mpio', comm=comm)
@@ -119,10 +120,10 @@ if __name__ == '__main__':
     #f5 = h5py.File(DPATH+'0.5.hdf5', driver='mpio', comm=comm)
     #print 'finished reading h5py file!'
     
-    output = h5py.File( DPATH+'TEST33.hdf5', 'w', driver='mpio', comm=comm)
+    output = h5py.File( DPATH+'ftva.hdf5', 'w', driver='mpio', comm=comm)
     
     dset = output.create_dataset(name='majEigenVal', \
-                                 shape=(X_EXT, Y_EXT, STEPS), dtype='i')
+                                 shape=(X_EXT/3 + 1,Y_EXT,(STEPS/INTERVAL)+1), dtype='f')
     
                 
     main(dset)
