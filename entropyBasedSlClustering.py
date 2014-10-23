@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from sklearn.cluster import DBSCAN
 import math
+import random
 
 
 DPATH = '/home/behollis/DATA/out/lockExSt/ts00050/'
@@ -120,19 +121,52 @@ def calcStreamlineFeatures(slines):
     # return feature vectors of streamlines
     return slines_features
         
-def readStreamlines(x, y, f):
+def readStreamlines(x, y, f, mem_min=None, mem_max=None, ext_xmax = None, \
+                    ext_ymax = None, ext_xmin = None, ext_ymin = None):
+    ''' loads streamlines thru seed with spatial extents / member extents '''
+    
     slines = list()
+    xlst =list()
+    ylst = list()
+    zlst = list()
     groups = f.keys()
     
     for mem in groups:
         dir = str(mem).zfill(4) + '/x' + str(x).zfill(3) + '/y' + str(y).zfill(3)
     
-        xlst = list(f[dir][0])
-        ylst = list(f[dir][1])
-        zlst = 0.0 * len(list(f[dir][0]))
-    
-        slines.append([xlst,ylst,zlst])
-        
+        mem_n = int(mem[3:]) 
+        if (mem_min == None and mem_max == None) or (mem_n >= mem_min and mem_n < mem_max):
+            try:
+                xlst = list(f[dir][0])
+                ylst = list(f[dir][1])
+                zlst = 0.0 * len(list(f[dir][0]))
+            except:
+                print 'trying to read member that is not in this hdf5 file...'
+        elif mem_n < mem_min or mem_n > mem_max:
+            continue
+            
+            
+        if ext_xmax == None and len(xlst) > 0:
+            slines.append( [xlst, ylst, zlst] )
+        elif len(xlst) > 0:
+            #collecting streamlines to cluster in region
+            region_xlst = list()
+            region_ylst = list()
+            region_zlst = list()
+            
+            for idx in range(0, len(xlst)):
+                x = xlst[idx]
+                y = ylst[idx]
+                if ( x <= ext_xmax ) and ( x >= ext_xmin ) \
+                    and (y <= ext_ymax) and (y >= ext_ymin):
+                    region_xlst.append(x)
+                    region_ylst.append(y)
+                    region_zlst.append(0.0)
+                            
+            if len(region_xlst) > 0:          
+                slines.append([region_xlst, region_ylst, region_zlst])
+                            
+                    
     return slines
         
 if __name__ == '__main__':
@@ -143,9 +177,48 @@ if __name__ == '__main__':
     f3 = h5py.File(DPATH+'0.3.hdf5', 'r')
     f4 = h5py.File(DPATH+'0.4.hdf5', 'r')
     f5 = h5py.File(DPATH+'0.5.hdf5', 'r')
-    #print 'finished reading h5py file!'
+    print 'finished reading h5py file!'
     
-   
+    files = (f0,f1,f2,f3,f4,f5)
+    
+    ext_xmin = 20; ext_xmax = 40; ext_ymin = 50; ext_ymax = 60
+    mem_min = 1; mem_max = 1000
+    # readstreamlines for region
+    region_slines = list()
+    member_slines = list()
+    SKIP = 2
+    for member in range(mem_min, mem_max + 1, 50):
+        print member
+        for f in files:
+            for seed_y in range(ext_ymin, ext_ymax, SKIP):
+                for seed_x in range(ext_xmin, ext_xmax, SKIP): 
+                    #print 'reading {0} {1}'.format(seed_x, seed_y)
+                    region_slines.append( readStreamlines(seed_x, seed_y, f, member, member+1, \
+                                                         ext_xmax, ext_ymax, ext_xmin, ext_ymin) )
+        member_slines.append( region_slines )
+            
+    
+    for idx, m in enumerate(member_slines):
+        fig = plt.figure()
+        ax = fig.gca(projection='3d')
+        
+        random.seed()
+        c = (random.uniform(0.,1.), random.uniform(0.,1.), random.uniform(0.,1.))
+        for g in m:
+            if len(g) != 0:
+                for l in g:
+                    ax.plot(l[0], l[1], l[2],color = c)
+                    #print 'color{0}'.format(c) 
+                    #print l[0]
+                    #print l[1]
+                    #print l[2] 
+        plt.title('Region Streamlines, member {0}'.format(idx))  
+        ax.legend()
+        plt.savefig(DPATH+'regionslines{0}'.format(idx))
+    
+    '''
+    # streamline clustering for seed...
+    
     slines0 = readStreamlines(29,30, f0)
     slines2 = readStreamlines(29,30, f2)
     slines4 = readStreamlines(29,30, f4)
@@ -202,51 +275,14 @@ if __name__ == '__main__':
         
         ax.legend()
         plt.show()
-    
-
-    #print('Estimated number of clusters: %d' % n_clusters_)
-    '''
-    print("Homogeneity: %0.3f" % metrics.homogeneity_score(labels_true, labels))
-    print("Completeness: %0.3f" % metrics.completeness_score(labels_true, labels))
-    print("V-measure: %0.3f" % metrics.v_measure_score(labels_true, labels))
-    print("Adjusted Rand Index: %0.3f"
-          % metrics.adjusted_rand_score(labels_true, labels))
-    print("Adjusted Mutual Information: %0.3f"
-          % metrics.adjusted_mutual_info_score(labels_true, labels))
-    print("Silhouette Coefficient: %0.3f"
-          % metrics.silhouette_score(X, labels))
     '''
     
-    
-    '''
-    ##############################################################################
-    # Plot result
-    import matplotlib.pyplot as plt
-    
-    # Black removed and is used for noise instead.
-    unique_labels = set(labels)
-    colors = plt.cm.Spectral(np.linspace(0, 1, len(unique_labels)))
-    for k, col in zip(unique_labels, colors):
-        if k == -1:
-            # Black used for noise.
-            col = 'k'
-    
-        class_member_mask = (labels == k)
-    
-        xy = feat_total[class_member_mask & core_samples_mask]
-        plt.plot(xy[:, 0], xy[:, 1], 'o', markerfacecolor=col,
-                 markeredgecolor='k', markersize=14)
-    
-        xy = feat_total[class_member_mask & ~core_samples_mask]
-        plt.plot(xy[:, 0], xy[:, 1], 'o', markerfacecolor=col,
-                 markeredgecolor='k', markersize=6)
-    
-    plt.title('Estimated number of clusters: %d' % n_clusters_)
-    plt.show()
-    '''
-       
-   
-    f0.close(); f2.close(); f4.close()
+    f0.close()
+    f1.close() 
+    f2.close()
+    f3.close()   
+    f4.close()
+    f5.close()
     
     print 'finished!'
     
