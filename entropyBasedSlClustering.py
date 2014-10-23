@@ -141,14 +141,11 @@ def readStreamlines(x, y, f, mem_min=None, mem_max=None, ext_xmax = None, \
                 ylst = list(f[dir][1])
                 zlst = 0.0 * len(list(f[dir][0]))
             except:
-                print 'trying to read member that is not in this hdf5 file...'
-        elif mem_n < mem_min or mem_n > mem_max:
+                print 'trying to read MEMBER or SEED that is not in this hdf5 file...'
+        else:
             continue
             
-            
-        if ext_xmax == None and len(xlst) > 0:
-            slines.append( [xlst, ylst, zlst] )
-        elif len(xlst) > 0:
+        if len(xlst) > 0 and len(ylst) > 0:
             #collecting streamlines to cluster in region
             region_xlst = list()
             region_ylst = list()
@@ -181,13 +178,14 @@ if __name__ == '__main__':
     
     files = (f0,f1,f2,f3,f4,f5)
     
-    ext_xmin = 20; ext_xmax = 40; ext_ymin = 50; ext_ymax = 60
+    ext_xmin = 20; ext_xmax = 25; ext_ymin = 20; ext_ymax = 25
     mem_min = 1; mem_max = 1000
     # readstreamlines for region
-    region_slines = list()
+    
     member_slines = list()
-    SKIP = 2
-    for member in range(mem_min, mem_max + 1, 50):
+    SKIP = 1
+    for member in range(mem_min, mem_max + 1, 25):
+        region_slines = list()
         print member
         for f in files:
             for seed_y in range(ext_ymin, ext_ymax, SKIP):
@@ -198,22 +196,23 @@ if __name__ == '__main__':
         member_slines.append( region_slines )
             
     
-    for idx, m in enumerate(member_slines):
+    for idx in range(len(member_slines)):
         fig = plt.figure()
-        ax = fig.gca(projection='3d')
+        #ax = fig.gca(projection='3d')
         
         random.seed()
         c = (random.uniform(0.,1.), random.uniform(0.,1.), random.uniform(0.,1.))
-        for g in m:
+        for g in member_slines[idx]:
             if len(g) != 0:
                 for l in g:
-                    ax.plot(l[0], l[1], l[2],color = c)
+                    #ax.plot(l[0], l[1], 0.0, color = c, linewidth = 0.3)
+                    plt.plot(l[0], l[1], color = c, linewidth = 0.3)
                     #print 'color{0}'.format(c) 
                     #print l[0]
                     #print l[1]
                     #print l[2] 
         plt.title('Region Streamlines, member {0}'.format(idx))  
-        ax.legend()
+        #ax.legend()
         plt.savefig(DPATH+'regionslines{0}'.format(idx))
     
     '''
