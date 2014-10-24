@@ -28,6 +28,10 @@ def calcStreamlineFeatures(slines):
     slines_features = list()
     
     for sl in slines:
+        
+       if len(sl[0]) < 3 and len(sl[1]) < 3 and len(sl[2]) < 3:
+           continue 
+         
        slf = list() #list of streamline feature vectors to cluster
        #find first, middle, and last points on sl
        begin_pt = [ sl[0][0], sl[1][0], 0.0 ]
@@ -165,6 +169,23 @@ def readStreamlines(x, y, f, mem_min=None, mem_max=None, ext_xmax = None, \
                             
                     
     return slines
+
+def clusterCrispFieldSlines(vec_field):
+    #calculate feature vectors for streamlines
+    feat = list()
+    for sl in vec_field:
+        feat_sl = calcStreamlineFeatures( sl )
+        if len( feat_sl ) > 0:
+            feat.append( feat_sl[ 0 ] )
+    
+    feat_total = np.array( feat )
+    
+    feat_total.reshape(len(feat_total), 3*3 + 2 )
+    
+    #dbscan on 
+    db = DBSCAN(eps=50.0).fit(feat_total)
+    
+    return db
         
 if __name__ == '__main__':
     #print 'reading hdf5 file...'
@@ -174,17 +195,19 @@ if __name__ == '__main__':
     f3 = h5py.File(DPATH+'0.3.hdf5', 'r')
     f4 = h5py.File(DPATH+'0.4.hdf5', 'r')
     f5 = h5py.File(DPATH+'0.5.hdf5', 'r')
+    
+    
     print 'finished reading h5py file!'
     
     files = (f0,f1,f2,f3,f4,f5)
     
-    ext_xmin = 20; ext_xmax = 25; ext_ymin = 20; ext_ymax = 25
-    mem_min = 1; mem_max = 1000
+    ext_xmin = 5; ext_xmax = 10; ext_ymin = 5; ext_ymax = 15
+    mem_min = 1; mem_max = 5
     # readstreamlines for region
     
     member_slines = list()
     SKIP = 1
-    for member in range(mem_min, mem_max + 1, 25):
+    for member in range(mem_min, mem_max + 1, 1):
         region_slines = list()
         print member
         for f in files:
@@ -214,6 +237,24 @@ if __name__ == '__main__':
         plt.title('Region Streamlines, member {0}'.format(idx))  
         #ax.legend()
         plt.savefig(DPATH+'regionslines{0}'.format(idx))
+        
+    for idx, m in enumerate(member_slines):
+        db = clusterCrispFieldSlines(m)
+        
+        for c in set(db.labels_):
+            fig = plt.figure()
+            #ax = fig.gca(projection='3d')
+            
+            size_cluster = 0
+            for l in range(0, len( db.labels_ )):
+                if c == int(db.labels_[l] ):
+                    if m[l][0][0] > 2 and m[l][0][1] > 2 and m[l][0][2] > 2:
+                        size_cluster += 1
+                        plt.plot( m[l][0][0], m[l][0][1] ) 
+                    
+            plt.title('Member: {0}, Label: {1}, Size: {2}'.format(idx,c,size_cluster))   
+            #ax.legend()
+            plt.show()
     
     '''
     # streamline clustering for seed...
