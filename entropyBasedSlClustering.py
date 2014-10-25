@@ -5,6 +5,8 @@ from mpl_toolkits.mplot3d import Axes3D
 from sklearn.cluster import DBSCAN
 import math
 import random
+import optics
+import pylab as P
 
 
 DPATH = '/home/behollis/DATA/out/lockExSt/ts00050/'
@@ -164,7 +166,7 @@ def readStreamlines(x, y, f, mem_min=None, mem_max=None, ext_xmax = None, \
                     region_ylst.append(y)
                     region_zlst.append(0.0)
                             
-            if len(region_xlst) > 0:          
+            if len(region_xlst) > 0 and len(region_ylst) and len(region_zlst):          
                 slines.append([region_xlst, region_ylst, region_zlst])
                             
                     
@@ -183,7 +185,18 @@ def clusterCrispFieldSlines(vec_field):
     feat_total.reshape(len(feat_total), 3*3 + 2 )
     
     #dbscan on 
-    db = DBSCAN(eps=50.0).fit(feat_total)
+    try:
+        
+        #P.plot(testX[:,0], testX[:,1], 'ro')
+        #RD, CD, order = optics(feat_total, 4)
+        #testXOrdered = testX[order]
+        #P.plot(testXOrdered[:,0], testXOrdered[:,1], 'b-')
+        #print order
+        
+        db = DBSCAN(eps=15.0).fit(feat_total)
+    except:
+        print feat_total
+        exit()
     
     return db
         
@@ -196,35 +209,53 @@ if __name__ == '__main__':
     f4 = h5py.File(DPATH+'0.4.hdf5', 'r')
     f5 = h5py.File(DPATH+'0.5.hdf5', 'r')
     
+    f6 = h5py.File(DPATH+'1.6.hdf5', 'r')
+    f7 = h5py.File(DPATH+'1.7.hdf5', 'r')
+    f8 = h5py.File(DPATH+'1.8.hdf5', 'r')
+    f9 = h5py.File(DPATH+'1.9.hdf5', 'r')
+    f10 = h5py.File(DPATH+'1.10.hdf5', 'r')
+    f11 = h5py.File(DPATH+'1.11.hdf5', 'r')
+    
+    f12 = h5py.File(DPATH+'2.12.hdf5', 'r')
+    f13 = h5py.File(DPATH+'2.13.hdf5', 'r')
+    f14 = h5py.File(DPATH+'2.14.hdf5', 'r')
+    f15 = h5py.File(DPATH+'2.15.hdf5', 'r')
+    f16 = h5py.File(DPATH+'2.16.hdf5', 'r')
+    f17 = h5py.File(DPATH+'2.17.hdf5', 'r')
+    
     
     print 'finished reading h5py file!'
     
-    files = (f0,f1,f2,f3,f4,f5)
+    files = (f0,f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11, f12, f13, f14, f15, f16, f17 )
     
-    ext_xmin = 5; ext_xmax = 10; ext_ymin = 5; ext_ymax = 15
-    mem_min = 1; mem_max = 5
+    ext_xmin = 50; ext_xmax = 70; ext_ymin = 40; ext_ymax = 50
+    mem_min = 5; mem_max = 990
     # readstreamlines for region
     
     member_slines = list()
     SKIP = 1
-    for member in range(mem_min, mem_max + 1, 1):
+    for member in range(mem_min, mem_max + 1, 10):
         region_slines = list()
         print member
         for f in files:
             for seed_y in range(ext_ymin, ext_ymax, SKIP):
                 for seed_x in range(ext_xmin, ext_xmax, SKIP): 
                     #print 'reading {0} {1}'.format(seed_x, seed_y)
-                    region_slines.append( readStreamlines(seed_x, seed_y, f, member, member+1, \
-                                                         ext_xmax, ext_ymax, ext_xmin, ext_ymin) )
+                    sl = readStreamlines(seed_x, seed_y, f, member, member+1, \
+                                                         ext_xmax, ext_ymax, ext_xmin, ext_ymin)
+                    if len(sl) > 0:
+                        region_slines.append( sl )
+                    
         member_slines.append( region_slines )
-            
+           
     
     for idx in range(len(member_slines)):
-        fig = plt.figure()
+        fig, ax = plt.subplots()
         #ax = fig.gca(projection='3d')
         
-        random.seed()
-        c = (random.uniform(0.,1.), random.uniform(0.,1.), random.uniform(0.,1.))
+        #random.seed()
+        #c = (random.uniform(0.,1.), random.uniform(0.,1.), random.uniform(0.,1.))
+        c = (0.,0.,0.)
         for g in member_slines[idx]:
             if len(g) != 0:
                 for l in g:
@@ -234,27 +265,36 @@ if __name__ == '__main__':
                     #print l[0]
                     #print l[1]
                     #print l[2] 
-        plt.title('Region Streamlines, member {0}'.format(idx))  
+        plt.title('Region Streamlines, member {0}'.format(idx)) 
+        ax.set_xlim([ext_xmin, ext_xmax])
+        ax.set_ylim([ext_ymin, ext_ymax]) 
         #ax.legend()
-        plt.savefig(DPATH+'regionslines{0}'.format(idx))
+        plt.savefig(DPATH+'{0}member'.format(idx))
+    
         
     for idx, m in enumerate(member_slines):
         db = clusterCrispFieldSlines(m)
         
         for c in set(db.labels_):
-            fig = plt.figure()
+            fig, ax = plt.subplots()
             #ax = fig.gca(projection='3d')
             
             size_cluster = 0
             for l in range(0, len( db.labels_ )):
                 if c == int(db.labels_[l] ):
-                    if m[l][0][0] > 2 and m[l][0][1] > 2 and m[l][0][2] > 2:
-                        size_cluster += 1
-                        plt.plot( m[l][0][0], m[l][0][1] ) 
+                    print 'm ' + str(idx)
+                    if len(m[l]) > 0:
+                        if m[l][0][0] > 2 and m[l][0][1] > 2 and m[l][0][2] > 2:
+                            size_cluster += 1
+                            plt.plot( m[l][0][0], m[l][0][1], color = \
+                                      (0.0,0.0,0.0), linewidth = 0.3 ) 
                     
             plt.title('Member: {0}, Label: {1}, Size: {2}'.format(idx,c,size_cluster))   
             #ax.legend()
-            plt.show()
+            ax.set_xlim([ext_xmin, ext_xmax])
+            ax.set_ylim([ext_ymin, ext_ymax])
+            #print 'label' + str(c)
+            plt.savefig( DPATH+'{0}member{1}label'.format(idx, int(c)) )
     
     '''
     # streamline clustering for seed...
