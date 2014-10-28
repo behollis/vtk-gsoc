@@ -8,6 +8,7 @@ import random
 import optics
 import pylab as P
 import matplotlib.patches as mpatches
+import scipy 
 
 
 DPATH = '/home/behollis/DATA/out/lockExSt/ts00050/'
@@ -27,7 +28,7 @@ def py_ang(v1, v2):
     sinang = la.norm(np.cross(v1, v2))
     return np.arctan2(sinang, cosang)
 
-def calcStreamlineFeatures(slines, entropy_only = False):
+def calcStreamlineFeatures(slines, entropy_only = False, sline_dict = None):
     slines_features = list()
     
     for sl in slines:
@@ -136,6 +137,10 @@ def calcStreamlineFeatures(slines, entropy_only = False):
         
        else:
            slines_features.append( slf )
+           
+       #add entry to dictionary
+       if sline_dict is not None:
+           sline_dict[slf] = sl
     
        print 'l entropy: ' + str( slf[9] )
        print 'a entropy: ' + str( slf[10] )
@@ -188,11 +193,11 @@ def readStreamlines(x, y, f, mem_min=None, mem_max=None, ext_xmax = None, \
                     
     return slines
 
-def clusterCrispFieldSlines(vec_field):
+def clusterCrispFieldSlines(vec_field, sl_dict=None):
     #calculate feature vectors for streamlines
     feat = list()
     for sl in vec_field:
-        feat_sl = calcStreamlineFeatures( sl , entropy_only = True )
+        feat_sl = calcStreamlineFeatures( sl , entropy_only = True, sl_dict = sl_dict )
         if len( feat_sl ) > 0:
             feat.append( feat_sl[ 0 ] )
     
@@ -241,6 +246,53 @@ def clusterCrispFieldSlines(vec_field):
         exit()
     
     return db
+
+def getRepStreamlines(db, sl_dict, member_sls):
+    ''' Finds streamlines with features closest to cluster centroid. '''
+    
+    FEATURES = 3*3 + 2
+    
+    #dictionary of cluster id -> (feature_vector, streamline coord list)
+    cluster_dict = dict()
+    
+    #find cluster streamlines
+    for idx in range(0, db.labels_):
+        clabel = db.labels_[idx]
+        sl = member_sls[idx]
+        
+        if cluster_dict[clabel] == None:
+            cluster_dict[clabel] = list()
+        
+        for slkey in sl_dict.keys():
+            if sl == slkey: 
+                cluster_dict[clabel].append( (sl_dict[sl], sl) )
+                break
+        
+    #find centroid and rep streamline for cluster
+    cluster_reps = []
+    for cl in cluster_dict.keys():
+        avg_feat_vec = [0.0] * FEATURES
+        for sl in cluster_dict[ cl ]:
+            for idx in range(0, FEATURES):
+                avg_feat_vec[idx] += sl[0][idx]
+        for idx in range(0, FEATURES):
+            avg_feat_vec /= len( cluster_dict[cl] )
+            
+        #find closest sl to centroid
+        rep_sl_fvec = cluster_dict[ cluster_dict.keys()[0] ][ 0 ]
+        for cl in cluster_dict.keys():
+            if scipy.spatial.distance.euclidean(rep_sl_fvec, avg_feat_vec) > \
+                scipy.spatial.distance.euclidean( cluster_dict[cl][0], avg_feat_vec):
+                rep_sl_fvec = cluster_dict[cl][0]
+                
+        cluster_reps.append( ( cl, sl_dict[ rep_sl_fvec ] ) )
+        
+        
+    return cluster_reps
+        
+        
+    
+    
         
 if __name__ == '__main__':
     #print 'reading hdf5 file...'
@@ -315,7 +367,10 @@ if __name__ == '__main__':
     
         
     for idx, m in enumerate(member_slines):
-        db = clusterCrispFieldSlines(m)
+        member_sl_dict = dict()
+        db = clusterCrispFieldSlines(m, entropy_only = False, sl_dict = member_sl_dict)
+        
+        rep_sl_tuples = getRepStreamline(db, member_sl_dict,m)
         
         for c in set(db.labels_):
             fig, ax = plt.subplots()

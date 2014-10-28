@@ -106,7 +106,8 @@ if __name__ == '__main__':
     st.SetMaximumIntegrationStep(0.2)
     st.SetTerminalSpeed(0.001)
     st.SetIntegratorTypeToRungeKutta45()
-    st.SetIntegrationDirection( vtk.vtkStreamTracer.BACKWARD )
+    #st.SetIntegrationDirection( vtk.vtkStreamTracer.BACKWARD )
+    st.SetIntegrationDirection( vtk.vtkStreamTracer.FORWARD )
     st.SetComputeVorticity(False)
     
     dir = DATA_ROOT+'lockExSt/ts00050/'
@@ -117,7 +118,7 @@ if __name__ == '__main__':
     node = 0#grank / NUM_CORES_PER_NODE
     print 'node: ' + str(node)
     
-    fname = str(node) + '.' + str(grank) + '.hdf5'
+    fname = str(node) + '.' + str(grank) + '.forward.hdf5'
     #fname = str(node) + '.hdf5'
     f = h5py.File( dir+fname, 'w' )
         
