@@ -7,6 +7,7 @@ import math
 import random
 import optics
 import pylab as P
+import matplotlib.patches as mpatches
 
 
 DPATH = '/home/behollis/DATA/out/lockExSt/ts00050/'
@@ -26,7 +27,7 @@ def py_ang(v1, v2):
     sinang = la.norm(np.cross(v1, v2))
     return np.arctan2(sinang, cosang)
 
-def calcStreamlineFeatures(slines):
+def calcStreamlineFeatures(slines, entropy_only = False):
     slines_features = list()
     
     for sl in slines:
@@ -89,15 +90,18 @@ def calcStreamlineFeatures(slines):
        #summation of linear entropies
        sum_lentropy = 0.0
        for s in sl_seg_lengths:
-           sum_lentropy += s + ( math.log(s, 2) / total_len )
+           #sum_lentropy += s + ( math.log(s, 2) / total_len )
+           sum_lentropy += ( s / total_len ) * ( math.log(s / total_len, 2) / total_len )
        
-       lentropy = -1.0 * ( sum_lentropy / ( math.log(total_len + 1,2) * total_len ) )
+       #lentropy = -1.0 * ( sum_lentropy / ( math.log(total_len + 1,2) * total_len ) )
+       lentropy = -1.0 * sum_lentropy / math.log( total_len + 1,2 )
        
        slf.append( lentropy )
        
        #find total angular variation and angle between each segment
        sl_seg_ang = list()
        total_ang = 0.0
+       total_ang_change = 0.0
        for j in range( 1, num_pts - 1 ):
            pt0 = ( sl[0][j-1], sl[1][j-1], 0.0 )
            pt1 = ( sl[0][j]  , sl[1][j]  , 0.0 )
@@ -107,23 +111,35 @@ def calcStreamlineFeatures(slines):
            v1 = np.array(pt2) - np.array(pt1)
            
            ang = py_ang(v0,v1)
+           #print 'ang: ' + str(ang)
+           
            sl_seg_ang.append(ang)
            
            total_ang += math.fabs(ang)
+           total_ang_change += ang
            
        #summation of linear entropies
        sum_aentropy = 0.0
        for a in sl_seg_ang:
            if a != 0.0:
-               sum_aentropy += a + ( math.log( a, 2) / total_ang )
+               #sum_aentropy += a + ( math.log( a, 2) / total_ang )
+               sum_aentropy += ( a / total_ang ) * ( math.log(a / total_ang, 2) / total_ang )
+               
            
-       aentropy = -1.0 * ( sum_aentropy / ( math.log(total_ang,2) * total_ang ) )
+       #aentropy = -1.0 * ( sum_aentropy / ( math.log(total_ang,2) * total_ang ) )
+       aentropy = -1.0 * sum_aentropy / math.log( total_ang,2 )
        
        slf.append( aentropy )
        
+       if entropy_only: 
+           slines_features.append( [ slf[9], slf[10] ] )
         
-       slines_features.append( slf )
-       
+       else:
+           slines_features.append( slf )
+    
+       print 'l entropy: ' + str( slf[9] )
+       print 'a entropy: ' + str( slf[10] )
+            
     # return feature vectors of streamlines
     return slines_features
         
@@ -176,13 +192,15 @@ def clusterCrispFieldSlines(vec_field):
     #calculate feature vectors for streamlines
     feat = list()
     for sl in vec_field:
-        feat_sl = calcStreamlineFeatures( sl )
+        feat_sl = calcStreamlineFeatures( sl , entropy_only = True )
         if len( feat_sl ) > 0:
             feat.append( feat_sl[ 0 ] )
     
     feat_total = np.array( feat )
     
-    feat_total.reshape(len(feat_total), 3*3 + 2 )
+    feat_total.reshape( len(feat_total), 2 )#3*3 + 2 )
+    
+     
     
     #dbscan on 
     try:
@@ -193,7 +211,31 @@ def clusterCrispFieldSlines(vec_field):
         #P.plot(testXOrdered[:,0], testXOrdered[:,1], 'b-')
         #print order
         
-        db = DBSCAN(eps=15.0).fit(feat_total)
+        epsilon = 2.0
+        db = DBSCAN(eps=epsilon).fit(feat_total)
+        
+        print 'TOTAL CLUSTERS: ' + str(len(set(db.labels_)))
+        
+        fig = plt.figure()
+        lc = dict()
+        for lab in set(db.labels_):
+            if int(lab) == -1:
+                lc[int(lab)] = (1.0, 0.0, 0.0)
+            else:
+                lc[int(lab)] = (random.uniform(0.,1.), random.uniform(0.,1.), random.uniform(0.,1.))
+       
+        #legend = list()
+        for idx in range(0, len( db.labels_ )):
+            plt.scatter(feat_total[idx,0], feat_total[idx,1], color =  lc[db.labels_[idx]], \
+                        label='cluster label:' + str(db.labels_[idx])) 
+            
+        #plt.legend(legend, lc.keys(), loc='upper right' )
+                    
+        plt.title('streamline "shape" feature vectors')  
+        plt.xlabel('linear entropy')
+        plt.ylabel('angular entropy')
+        fig.savefig( DPATH+'feature_vecs' )    
+        
     except:
         print feat_total
         exit()
@@ -229,14 +271,14 @@ if __name__ == '__main__':
     files = (f0,f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11, f12, f13, f14, f15, f16, f17 )
     
     ext_xmin = 50; ext_xmax = 70; ext_ymin = 40; ext_ymax = 50
-    mem_min = 5; mem_max = 990
+    mem_min = 5; mem_max = 5
     # readstreamlines for region
     
     member_slines = list()
     SKIP = 1
-    for member in range(mem_min, mem_max + 1, 10):
+    for member in range(mem_min, mem_max + 1, 1):
         region_slines = list()
-        print member
+        #print member
         for f in files:
             for seed_y in range(ext_ymin, ext_ymax, SKIP):
                 for seed_x in range(ext_xmin, ext_xmax, SKIP): 
@@ -282,7 +324,7 @@ if __name__ == '__main__':
             size_cluster = 0
             for l in range(0, len( db.labels_ )):
                 if c == int(db.labels_[l] ):
-                    print 'm ' + str(idx)
+                    #print 'm ' + str(idx)
                     if len(m[l]) > 0:
                         if m[l][0][0] > 2 and m[l][0][1] > 2 and m[l][0][2] > 2:
                             size_cluster += 1
