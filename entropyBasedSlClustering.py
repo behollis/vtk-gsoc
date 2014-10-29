@@ -148,8 +148,8 @@ def calcStreamlineFeatures(slines, entropy_only = False, sline_dict = None):
     # return feature vectors of streamlines
     return slines_features
         
-def readStreamlines(x, y, f, mem_min=None, mem_max=None, ext_xmax = None, \
-                    ext_ymax = None, ext_xmin = None, ext_ymin = None):
+def readStreamlines(x, y, f, ff, mem_min=None, mem_max=None, ext_xmax = None, \
+                    ext_ymax = None, ext_xmin = None, ext_ymin = None, dinteg = 'backward'):
     ''' loads streamlines thru seed with spatial extents / member extents '''
     
     slines = list()
@@ -164,9 +164,32 @@ def readStreamlines(x, y, f, mem_min=None, mem_max=None, ext_xmax = None, \
         mem_n = int(mem[3:]) 
         if (mem_min == None and mem_max == None) or (mem_n >= mem_min and mem_n < mem_max):
             try:
-                xlst = list(f[dir][0])
-                ylst = list(f[dir][1])
-                zlst = 0.0 * len(list(f[dir][0]))
+                if dinteg == 'backward':
+                    xlst = list(f[dir][0])
+                    ylst = list(f[dir][1])
+                    zlst = 0.0 * len(list(f[dir][0]))
+                elif dinteg == 'forward':
+                    xlst = list(ff[dir][0])
+                    ylst = list(ff[dir][1])
+                    zlst = 0.0 * len(list(ff[dir][0]))
+                else: # 'both'
+                    xlst_b = list(f[dir][0][1:])
+                    xlst_b.reverse()
+                    
+                    ylst_b = list(f[dir][1][1:])
+                    ylst_b.reverse()
+                    
+                    zlst_b = [0.0] * len( xlst_b )
+                    #zlst_b.reverse()
+                    
+                    xlst_f = list(ff[dir][0])
+                    ylst_f = list(ff[dir][1])
+                    zlst_f = [0.0] * len( xlst_f )
+                    
+                    xlst = xlst_b + xlst_f
+                    ylst = ylst_b + ylst_f
+                    zlst = zlst_b + zlst_f
+                    
             except:
                 print 'trying to read MEMBER or SEED that is not in this hdf5 file...'
         else:
@@ -197,13 +220,13 @@ def clusterCrispFieldSlines(vec_field, sl_dict=None):
     #calculate feature vectors for streamlines
     feat = list()
     for sl in vec_field:
-        feat_sl = calcStreamlineFeatures( sl , entropy_only = True, sl_dict = sl_dict )
+        feat_sl = calcStreamlineFeatures( sl , entropy_only = False)#, sl_dict = sl_dict )
         if len( feat_sl ) > 0:
             feat.append( feat_sl[ 0 ] )
     
     feat_total = np.array( feat )
     
-    feat_total.reshape( len(feat_total), 2 )#3*3 + 2 )
+    feat_total.reshape( len(feat_total), 3*3 + 2 )
     
      
     
@@ -216,7 +239,7 @@ def clusterCrispFieldSlines(vec_field, sl_dict=None):
         #P.plot(testXOrdered[:,0], testXOrdered[:,1], 'b-')
         #print order
         
-        epsilon = 2.0
+        epsilon = 3.0
         db = DBSCAN(eps=epsilon).fit(feat_total)
         
         print 'TOTAL CLUSTERS: ' + str(len(set(db.labels_)))
@@ -296,6 +319,7 @@ def getRepStreamlines(db, sl_dict, member_sls):
         
 if __name__ == '__main__':
     #print 'reading hdf5 file...'
+    #backware integrated...
     f0 = h5py.File(DPATH+'0.0.hdf5', 'r')
     f1 = h5py.File(DPATH+'0.1.hdf5', 'r')
     f2 = h5py.File(DPATH+'0.2.hdf5', 'r')
@@ -317,26 +341,48 @@ if __name__ == '__main__':
     f16 = h5py.File(DPATH+'2.16.hdf5', 'r')
     f17 = h5py.File(DPATH+'2.17.hdf5', 'r')
     
+    f0f = h5py.File(DPATH+'0.0.forward.hdf5', 'r')
+    f1f = h5py.File(DPATH+'0.1.forward.hdf5', 'r')
+    f2f = h5py.File(DPATH+'0.2.forward.hdf5', 'r')
+    f3f = h5py.File(DPATH+'0.3.forward.hdf5', 'r')
+    f4f = h5py.File(DPATH+'0.4.forward.hdf5', 'r')
+    f5f = h5py.File(DPATH+'0.5.forward.hdf5', 'r')
+    
+    f6f = h5py.File(DPATH+'1.6.forward.hdf5', 'r')
+    f7f = h5py.File(DPATH+'1.7.forward.hdf5', 'r')
+    f8f = h5py.File(DPATH+'1.8.forward.hdf5', 'r')
+    f9f = h5py.File(DPATH+'1.9.forward.hdf5', 'r')
+    f10f = h5py.File(DPATH+'1.10.forward.hdf5', 'r')
+    f11f = h5py.File(DPATH+'1.11.forward.hdf5', 'r')
+    
+    f12f = h5py.File(DPATH+'2.12.forward.hdf5', 'r')
+    f13f = h5py.File(DPATH+'2.13.forward.hdf5', 'r')
+    f14f = h5py.File(DPATH+'2.14.forward.hdf5', 'r')
+    f15f = h5py.File(DPATH+'2.15.forward.hdf5', 'r')
+    f16f = h5py.File(DPATH+'2.16.forward.hdf5', 'r')
+    f17f = h5py.File(DPATH+'2.17.forward.hdf5', 'r')
+    
     
     print 'finished reading h5py file!'
     
-    files = (f0,f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11, f12, f13, f14, f15, f16, f17 )
+    files = ( f0,f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11, f12, f13, f14, f15, f16, f17)
+    files_f = ( f0f,f1f,f2f,f3f,f4f,f5f,f6f,f7f,f8f,f9f,f10f,f11f, f12f, f13f, f14f, f15f, f16f, f17f )
     
     ext_xmin = 50; ext_xmax = 70; ext_ymin = 40; ext_ymax = 50
-    mem_min = 5; mem_max = 5
+    mem_min = 1; mem_max = 1000
     # readstreamlines for region
     
     member_slines = list()
     SKIP = 1
-    for member in range(mem_min, mem_max + 1, 1):
+    for member in range(mem_min, mem_max + 1, 100):
         region_slines = list()
         #print member
-        for f in files:
+        for idx in range(0, len(files)): #f, ff in files, files_f:
             for seed_y in range(ext_ymin, ext_ymax, SKIP):
                 for seed_x in range(ext_xmin, ext_xmax, SKIP): 
                     #print 'reading {0} {1}'.format(seed_x, seed_y)
-                    sl = readStreamlines(seed_x, seed_y, f, member, member+1, \
-                                                         ext_xmax, ext_ymax, ext_xmin, ext_ymin)
+                    sl = readStreamlines(seed_x, seed_y, files[idx], files_f[idx], member, member+1, \
+                                                         ext_xmax, ext_ymax, ext_xmin, ext_ymin, dinteg='both')
                     if len(sl) > 0:
                         region_slines.append( sl )
                     
@@ -363,14 +409,14 @@ if __name__ == '__main__':
         ax.set_xlim([ext_xmin, ext_xmax])
         ax.set_ylim([ext_ymin, ext_ymax]) 
         #ax.legend()
-        plt.savefig(DPATH+'{0}member'.format(idx))
+        plt.savefig(DPATH+'BOTH{0}member'.format(idx))
     
         
     for idx, m in enumerate(member_slines):
-        member_sl_dict = dict()
-        db = clusterCrispFieldSlines(m, entropy_only = False, sl_dict = member_sl_dict)
+        member_sl_dict = None#dict()
+        db = clusterCrispFieldSlines(m)# sl_dict = member_sl_dict)
         
-        rep_sl_tuples = getRepStreamline(db, member_sl_dict,m)
+        #rep_sl_tuples = getRepStreamline(db, member_sl_dict,m)
         
         for c in set(db.labels_):
             fig, ax = plt.subplots()
@@ -391,7 +437,7 @@ if __name__ == '__main__':
             ax.set_xlim([ext_xmin, ext_xmax])
             ax.set_ylim([ext_ymin, ext_ymax])
             #print 'label' + str(c)
-            plt.savefig( DPATH+'{0}member{1}label'.format(idx, int(c)) )
+            plt.savefig( DPATH+'BOTH{0}member{1}label'.format(idx, int(c)) )
     
     '''
     # streamline clustering for seed...
