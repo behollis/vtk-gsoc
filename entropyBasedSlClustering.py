@@ -140,7 +140,7 @@ def calcStreamlineFeatures(slines, entropy_only = False, sline_dict = None):
            
        #add entry to dictionary
        if sline_dict is not None:
-           sline_dict[slf] = sl
+           sline_dict[tuple(slf)] = sl
     
        print 'l entropy: ' + str( slf[9] )
        print 'a entropy: ' + str( slf[10] )
@@ -220,7 +220,7 @@ def clusterCrispFieldSlines(vec_field, sl_dict=None):
     #calculate feature vectors for streamlines
     feat = list()
     for sl in vec_field:
-        feat_sl = calcStreamlineFeatures( sl , entropy_only = False)#, sl_dict = sl_dict )
+        feat_sl = calcStreamlineFeatures( sl , entropy_only = False, sline_dict = sl_dict )
         if len( feat_sl ) > 0:
             feat.append( feat_sl[ 0 ] )
     
@@ -239,7 +239,7 @@ def clusterCrispFieldSlines(vec_field, sl_dict=None):
         #P.plot(testXOrdered[:,0], testXOrdered[:,1], 'b-')
         #print order
         
-        epsilon = 3.0
+        epsilon = 4.0
         db = DBSCAN(eps=epsilon).fit(feat_total)
         
         print 'TOTAL CLUSTERS: ' + str(len(set(db.labels_)))
@@ -275,20 +275,20 @@ def getRepStreamlines(db, sl_dict, member_sls):
     
     FEATURES = 3*3 + 2
     
-    #dictionary of cluster id -> (feature_vector, streamline coord list)
+    #dictionary of cluster id -> [feature_vector, streamline coord list]
     cluster_dict = dict()
     
     #find cluster streamlines
-    for idx in range(0, db.labels_):
-        clabel = db.labels_[idx]
-        sl = member_sls[idx]
+    for idx in range(0, len(db.labels_)):
+        clabel = int(db.labels_[idx])
+        sl = member_sls[idx][0] #one streamline per member for a seed
         
-        if cluster_dict[clabel] == None:
+        if clabel not in cluster_dict.keys():
             cluster_dict[clabel] = list()
         
         for slkey in sl_dict.keys():
-            if sl == slkey: 
-                cluster_dict[clabel].append( (sl_dict[sl], sl) )
+            if sl == sl_dict[slkey]: 
+                cluster_dict[clabel].append( ( slkey, sl_dict[slkey] ) )
                 break
         
     #find centroid and rep streamline for cluster
@@ -299,23 +299,22 @@ def getRepStreamlines(db, sl_dict, member_sls):
             for idx in range(0, FEATURES):
                 avg_feat_vec[idx] += sl[0][idx]
         for idx in range(0, FEATURES):
-            avg_feat_vec /= len( cluster_dict[cl] )
+            avg_feat_vec[idx] /= len( cluster_dict[cl] ) #divide by number of steamlines in cluster
             
         #find closest sl to centroid
-        rep_sl_fvec = cluster_dict[ cluster_dict.keys()[0] ][ 0 ]
-        for cl in cluster_dict.keys():
+        rep_sl_fvec = cluster_dict[ cluster_dict.keys()[0] ][0][0] #feature vector
+        
+        for sl_idx in range(0, len( cluster_dict[ cl ] ) ): # each streamline in a given cluster
             if scipy.spatial.distance.euclidean(rep_sl_fvec, avg_feat_vec) > \
-                scipy.spatial.distance.euclidean( cluster_dict[cl][0], avg_feat_vec):
-                rep_sl_fvec = cluster_dict[cl][0]
-                
+                scipy.spatial.distance.euclidean( cluster_dict[cl][sl_idx][0], avg_feat_vec):
+                rep_sl_fvec = cluster_dict[cl][sl_idx][0]
+            
+        #print 'adding rep streamline for cluster: ' + str(cl)
         cluster_reps.append( ( cl, sl_dict[ rep_sl_fvec ] ) )
         
         
     return cluster_reps
         
-        
-    
-    
         
 if __name__ == '__main__':
     #print 'reading hdf5 file...'
@@ -413,10 +412,10 @@ if __name__ == '__main__':
     
         
     for idx, m in enumerate(member_slines):
-        member_sl_dict = None#dict()
-        db = clusterCrispFieldSlines(m)# sl_dict = member_sl_dict)
+        member_sl_dict = dict()
+        db = clusterCrispFieldSlines(m, sl_dict = member_sl_dict)
         
-        #rep_sl_tuples = getRepStreamline(db, member_sl_dict,m)
+        rep_sl_tuples = getRepStreamlines(db, member_sl_dict,m)
         
         for c in set(db.labels_):
             fig, ax = plt.subplots()
@@ -431,13 +430,20 @@ if __name__ == '__main__':
                             size_cluster += 1
                             plt.plot( m[l][0][0], m[l][0][1], color = \
                                       (0.0,0.0,0.0), linewidth = 0.3 ) 
+                 
+            #render rep streamline for cluster
+            for rep in rep_sl_tuples:
+                if rep[0] == int( c ):
+                    plt.plot( rep[1][0], rep[1][1], color = \
+                                      (1.0,0.0,0.0), linewidth = 1.3 ) 
+                    break
                     
             plt.title('Member: {0}, Label: {1}, Size: {2}'.format(idx,c,size_cluster))   
             #ax.legend()
             ax.set_xlim([ext_xmin, ext_xmax])
             ax.set_ylim([ext_ymin, ext_ymax])
             #print 'label' + str(c)
-            plt.savefig( DPATH+'BOTH{0}member{1}label'.format(idx, int(c)) )
+            plt.savefig( DPATH+'BOTHRep{0}member{1}label'.format(idx, int(c)) )
     
     '''
     # streamline clustering for seed...
