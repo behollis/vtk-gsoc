@@ -38,13 +38,13 @@ def calcStreamlineFeatures(slines, entropy_only = False, sline_dict = None):
          
        slf = list() #list of streamline feature vectors to cluster
        #find first, middle, and last points on sl
-       begin_pt = [ sl[0][0], sl[1][0], 0.0 ]
+       begin_pt = [ sl[0][0], sl[1][0] ] #, 0.0 ]
        half_num_pts = len(sl[0])/2
        
        # TODO: need to compute this based on arc length approx of sline
-       mid_pt = [ sl[ 0 ][ half_num_pts ], sl[ 1 ][ half_num_pts ], 0.0  ]
+       mid_pt = [ sl[ 0 ][ half_num_pts ], sl[ 1 ][ half_num_pts ] ] #, 0.0  ]
        
-       end_pt = [ sl[0][-1], sl[1][-1], 0.0 ]
+       end_pt = [ sl[0][-1], sl[1][-1] ] #, 0.0 ]
        slf = begin_pt + mid_pt + end_pt 
        
        linear_entropy = 0.0
@@ -81,13 +81,15 @@ def calcStreamlineFeatures(slines, entropy_only = False, sline_dict = None):
            
        # reassign proper mid point    
        #print slf
-       slf[3] = sl[ 0 ][ mid_pt_idx ]
-       slf[4] = sl[ 1 ][ mid_pt_idx ]
-       slf[5] = 0.0  
+       
+       slf[2] = sl[ 0 ][ mid_pt_idx ]
+       slf[3] = sl[ 1 ][ mid_pt_idx ]
+       
+       #slf[5] = 0.0  
        
        #print slf
        
-       
+       '''
        #summation of linear entropies
        sum_lentropy = 0.0
        for s in sl_seg_lengths:
@@ -134,16 +136,17 @@ def calcStreamlineFeatures(slines, entropy_only = False, sline_dict = None):
        
        if entropy_only: 
            slines_features.append( [ slf[9], slf[10] ] )
+       '''
         
-       else:
-           slines_features.append( slf )
+       #else:
+       slines_features.append( slf )
            
        #add entry to dictionary
        if sline_dict is not None:
            sline_dict[tuple(slf)] = sl
     
-       print 'l entropy: ' + str( slf[9] )
-       print 'a entropy: ' + str( slf[10] )
+       #print 'l entropy: ' + str( slf[9] )
+       #print 'a entropy: ' + str( slf[10] )
             
     # return feature vectors of streamlines
     return slines_features
@@ -220,13 +223,19 @@ def clusterCrispFieldSlines(vec_field, sl_dict=None):
     #calculate feature vectors for streamlines
     feat = list()
     for sl in vec_field:
-        feat_sl = calcStreamlineFeatures( sl , entropy_only = False, sline_dict = sl_dict )
-        if len( feat_sl ) > 0:
-            feat.append( feat_sl[ 0 ] )
+        if sl is not []:
+            if len(sl[0][0]) > 2 and len(sl[0][1]) > 2 and len(sl[0][2]) > 2:
+                feat_sl = calcStreamlineFeatures( sl , entropy_only = False, sline_dict = sl_dict )
+                if feat_sl[0][0] != sl[0][0][0] and feat_sl[0][1] != sl[0][1][0] and \
+                    feat_sl[0][4] != sl[0][0][-1] and feat_sl[0][5] != sl[0][1][-1]:# and feat_sl[1] != sl[0][1]:
+                    print 'feature vector and streamline coords mismatch!!!!'
+                    
+                if len( feat_sl ) > 0:
+                    feat.append( feat_sl[ 0 ] )
     
     feat_total = np.array( feat )
     
-    feat_total.reshape( len(feat_total), 3*3 + 2 )
+    feat_total.reshape( len(feat_total), 3*2 )# + 2 )
     
      
     
@@ -239,10 +248,11 @@ def clusterCrispFieldSlines(vec_field, sl_dict=None):
         #P.plot(testXOrdered[:,0], testXOrdered[:,1], 'b-')
         #print order
         
-        epsilon = 4.0
+        epsilon = 5.0
         db = DBSCAN(eps=epsilon).fit(feat_total)
         
         print 'TOTAL CLUSTERS: ' + str(len(set(db.labels_)))
+        
         
         fig = plt.figure()
         lc = dict()
@@ -252,28 +262,32 @@ def clusterCrispFieldSlines(vec_field, sl_dict=None):
             else:
                 lc[int(lab)] = (random.uniform(0.,1.), random.uniform(0.,1.), random.uniform(0.,1.))
        
-        #legend = list()
-        for idx in range(0, len( db.labels_ )):
-            plt.scatter(feat_total[idx,0], feat_total[idx,1], color =  lc[db.labels_[idx]], \
-                        label='cluster label:' + str(db.labels_[idx])) 
-            
-        #plt.legend(legend, lc.keys(), loc='upper right' )
-                    
-        plt.title('streamline "shape" feature vectors')  
-        plt.xlabel('linear entropy')
-        plt.ylabel('angular entropy')
-        fig.savefig( DPATH+'feature_vecs' )    
+        for pos in range(0,3):
+        
+            fig = plt.figure()
+            #legend = list()
+            for idx in range(0, len( db.labels_ )):
+                plt.scatter(feat_total[idx,0+pos], feat_total[idx,1+pos], color =  lc[db.labels_[idx]], \
+                            label='cluster label:' + str(db.labels_[idx])) 
+                
+            #plt.legend(legend, lc.keys(), loc='upper right' )
+                        
+            plt.title('feature position: ' + str(pos) )  
+            plt.xlabel('feature x')
+            plt.ylabel('feature y')
+            fig.savefig( DPATH+'feature_vecs' + str(pos) )   
+        
         
     except:
         print feat_total
         exit()
     
-    return db
+    return db, feat
 
 def getRepStreamlines(db, sl_dict, member_sls):
     ''' Finds streamlines with features closest to cluster centroid. '''
     
-    FEATURES = 3*3 + 2
+    FEATURES = 3*2 #+ 2
     
     #dictionary of cluster id -> [feature_vector, streamline coord list]
     cluster_dict = dict()
@@ -368,7 +382,7 @@ if __name__ == '__main__':
     files_f = ( f0f,f1f,f2f,f3f,f4f,f5f,f6f,f7f,f8f,f9f,f10f,f11f, f12f, f13f, f14f, f15f, f16f, f17f )
     
     ext_xmin = 50; ext_xmax = 70; ext_ymin = 40; ext_ymax = 50
-    mem_min = 1; mem_max = 1000
+    mem_min = 1; mem_max = 1
     # readstreamlines for region
     
     member_slines = list()
@@ -387,7 +401,7 @@ if __name__ == '__main__':
                     
         member_slines.append( region_slines )
            
-    
+    '''
     for idx in range(len(member_slines)):
         fig, ax = plt.subplots()
         #ax = fig.gca(projection='3d')
@@ -409,41 +423,70 @@ if __name__ == '__main__':
         ax.set_ylim([ext_ymin, ext_ymax]) 
         #ax.legend()
         plt.savefig(DPATH+'BOTH{0}member'.format(idx))
-    
+    '''
         
     for idx, m in enumerate(member_slines):
         member_sl_dict = dict()
-        db = clusterCrispFieldSlines(m, sl_dict = member_sl_dict)
+        db, feat = clusterCrispFieldSlines(m, sl_dict = member_sl_dict)
         
         rep_sl_tuples = getRepStreamlines(db, member_sl_dict,m)
         
         for c in set(db.labels_):
+            
             fig, ax = plt.subplots()
+            ax.set_xlim([ext_xmin, ext_xmax])
+            ax.set_ylim([ext_ymin, ext_ymax])
+            
+            #if c == 0.0:
+            #    continue
+            
             #ax = fig.gca(projection='3d')
+            
             
             size_cluster = 0
             for l in range(0, len( db.labels_ )):
-                if c == int(db.labels_[l] ):
+                if c == db.labels_[l]:
                     #print 'm ' + str(idx)
-                    if len(m[l]) > 0:
-                        if m[l][0][0] > 2 and m[l][0][1] > 2 and m[l][0][2] > 2:
-                            size_cluster += 1
-                            plt.plot( m[l][0][0], m[l][0][1], color = \
-                                      (0.0,0.0,0.0), linewidth = 0.3 ) 
+                    #if len(m[l]) > 0:
+                    #    if len(m[l][0][0]) > 2 and len(m[l][0][1]) > 2 and len(m[l][0][2]) > 2:
+                    size_cluster += 1
+                            
+                            
+                           
+                    #plt.plot( m[l][0][0], m[l][0][1], color = \
+                    #           (0.0,0.0,0.0), linewidth = 0.3 ) 
+                    plt.plot( (member_sl_dict[tuple(feat[l])])[0], (member_sl_dict[tuple(feat[l])])[1], color = \
+                               (0.0,0.0,0.0), linewidth = 0.3 )
+                    
+                    '''
+                    print 'streamline: ' + str(l)
+                    print 'cluster label: ' + str(c)
+                    
+                    
+                    plt.show()
+                    
+                    print 'db.labels_[l]: ' + str(db.labels_[l])
+                    '''
                  
             #render rep streamline for cluster
+            
             for rep in rep_sl_tuples:
                 if rep[0] == int( c ):
                     plt.plot( rep[1][0], rep[1][1], color = \
                                       (1.0,0.0,0.0), linewidth = 1.3 ) 
                     break
-                    
+            
+            
+              
             plt.title('Member: {0}, Label: {1}, Size: {2}'.format(idx,c,size_cluster))   
             #ax.legend()
             ax.set_xlim([ext_xmin, ext_xmax])
             ax.set_ylim([ext_ymin, ext_ymax])
+            plt.xlabel('x')
+            plt.ylabel('y')
             #print 'label' + str(c)
             plt.savefig( DPATH+'BOTHRep{0}member{1}label'.format(idx, int(c)) )
+            
     
     '''
     # streamline clustering for seed...
