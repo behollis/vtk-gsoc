@@ -147,22 +147,28 @@ def calcStreamlineFeatures(slines, entropy_only = False, sline_dict = None):
 
 def readStreamlines(x, y, f):
     slines = list()
-    groups = f.keys()
     
-    for mem in groups:
-        dir = str(mem).zfill(4) + '/x' + str(x).zfill(3) + '/y' + str(y).zfill(3)
-    
-        xlst = list(f[dir][0])
-        ylst = list(f[dir][1])
-        zlst = 0.0 * len(list(f[dir][0]))
-    
-        slines.append([xlst,ylst,zlst])
+    try:
+        groups = f.keys()
         
+        for mem in groups:
+            dir = str(mem).zfill(4) + '/x' + str(x).zfill(3) + '/y' + str(y).zfill(3)
+        
+            xlst = list(f[dir][0])
+            ylst = list(f[dir][1])
+            zlst = 0.0 * len(list(f[dir][0]))
+        
+            slines.append([xlst,ylst,zlst])
+    except:
+        print 'reading error for streamlines at: {0} {1}'.format(x,y)
+        slines.append( [ [ERROR_CODE]*2,[ERROR_CODE]*2,[ERROR_CODE]*2 ] )
+        
+    #print slines
     return slines
    
 NUM_PROC = 6 #number of processes / cores per node
 NUM_NODES = 1
-X_EXT = 125
+X_EXT = 90#125
 Y_EXT = 125 
 SLICE_Y = int( Y_EXT / float( NUM_PROC ) )
 SLICE_X = int ( X_EXT / float( NUM_NODES ) )
@@ -170,6 +176,7 @@ STEPS = 500
 INTERVAL = 10
 MEMBERS = 1000
 MINTERVAL = 10
+ERROR_CODE = -1
         
 if __name__ == '__main__':
     
@@ -184,25 +191,25 @@ if __name__ == '__main__':
     #print 'reading hdf5 file...'
     if node == 0: #node = 1
         f0 = h5py.File(DPATH+'0.0.hdf5', 'r', driver='mpio', comm=comm)
-        f1 = h5py.File(DPATH+'0.1.hdf5', driver='mpio', comm=comm)
-        f2 = h5py.File(DPATH+'0.2.hdf5', driver='mpio', comm=comm)
-        f3 = h5py.File(DPATH+'0.3.hdf5', driver='mpio', comm=comm)
-        f4 = h5py.File(DPATH+'0.4.hdf5', driver='mpio', comm=comm)
-        f5 = h5py.File(DPATH+'0.5.hdf5', driver='mpio', comm=comm)
+        f1 = h5py.File(DPATH+'0.1.hdf5', 'r',driver='mpio', comm=comm)
+        f2 = h5py.File(DPATH+'0.2.hdf5', 'r',driver='mpio', comm=comm)
+        f3 = h5py.File(DPATH+'0.3.hdf5', 'r',driver='mpio', comm=comm)
+        f4 = h5py.File(DPATH+'0.4.hdf5', 'r',driver='mpio', comm=comm)
+        f5 = h5py.File(DPATH+'0.5.hdf5', 'r',driver='mpio', comm=comm)
     elif node == 3: #node = 3
-        f0 = h5py.File(DPATH+'2.0.hdf5', 'r', driver='mpio', comm=comm)
-        f1 = h5py.File(DPATH+'2.1.hdf5', driver='mpio', comm=comm)
-        f2 = h5py.File(DPATH+'2.2.hdf5', driver='mpio', comm=comm)
-        f3 = h5py.File(DPATH+'2.3.hdf5', driver='mpio', comm=comm)
-        f4 = h5py.File(DPATH+'2.4.hdf5', driver='mpio', comm=comm)
-        f5 = h5py.File(DPATH+'2.5.hdf5', driver='mpio', comm=comm)
+        f0 = h5py.File(DPATH+'2.12.hdf5', 'r', driver='mpio', comm=comm)
+        f1 = h5py.File(DPATH+'2.13.hdf5', 'r',driver='mpio', comm=comm)
+        f2 = h5py.File(DPATH+'2.14.hdf5', 'r',driver='mpio', comm=comm)
+        f3 = h5py.File(DPATH+'2.15.hdf5', 'r',driver='mpio', comm=comm)
+        f4 = h5py.File(DPATH+'2.16.hdf5', 'r',driver='mpio', comm=comm)
+        f5 = h5py.File(DPATH+'2.17.hdf5', 'r',driver='mpio', comm=comm)
     else:
         f0 = h5py.File(DPATH+'1.0.hdf5', 'r', driver='mpio', comm=comm)
-        f1 = h5py.File(DPATH+'1.1.hdf5', driver='mpio', comm=comm)
-        f2 = h5py.File(DPATH+'1.2.hdf5', driver='mpio', comm=comm)
-        f3 = h5py.File(DPATH+'1.3.hdf5', driver='mpio', comm=comm)
-        f4 = h5py.File(DPATH+'1.4.hdf5', driver='mpio', comm=comm)
-        f5 = h5py.File(DPATH+'1.5.hdf5', driver='mpio', comm=comm)
+        f1 = h5py.File(DPATH+'1.1.hdf5', 'r',driver='mpio', comm=comm)
+        f2 = h5py.File(DPATH+'1.2.hdf5', 'r',driver='mpio', comm=comm)
+        f3 = h5py.File(DPATH+'1.3.hdf5', 'r',driver='mpio', comm=comm)
+        f4 = h5py.File(DPATH+'1.4.hdf5', 'r',driver='mpio', comm=comm)
+        f5 = h5py.File(DPATH+'1.5.hdf5', 'r',driver='mpio', comm=comm)
         
     print 'finished reading hdf5 files'
         
@@ -212,18 +219,23 @@ if __name__ == '__main__':
                                   
     # streamline clustering for seed...
     for x in range( node*(X_EXT/3), (node+1)*(X_EXT/3)+1 ): #range( 0, X_EXT ):
-        if rank == 1: #get output for tracking on std out...
-            print 'x: ' + str(x)
         for y in range( rank*SLICE_Y, (rank+1)*SLICE_Y ):
+            
+            if x == 0:
+                #avoid edge case
+                continue
+            
+            print 'x{0}y{1} on rank: {2}'.format(x,y,rank)
 
             slines0 = readStreamlines(x, y, f0)
             slines2 = readStreamlines(x, y, f2)
             slines4 = readStreamlines(x, y, f4)
-            slines1 = readStreamlines(x, y, f1)
-            slines3 = readStreamlines(x, y, f3)
-            slines5 = readStreamlines(x, y, f5)
+            #slines1 = readStreamlines(x, y, f1)
+            #slines3 = readStreamlines(x, y, f3)
+            #slines5 = readStreamlines(x, y, f5)
             
-            sltotal = slines0 + slines1 + slines2 + slines3 + slines4 + slines5
+            #sltotal = slines0 + slines1 + slines2 + slines3 + slines4 + slines5
+            sltotal = slines0 + slines2 + slines4 
             
             '''
             fig = plt.figure()
@@ -236,55 +248,66 @@ if __name__ == '__main__':
             ax.legend()
             plt.show()
             '''
-        
+            
             #calculate feature vectors for streamlines
             feat = calcStreamlineFeatures(sltotal)
             
-            feat_total = np.array( feat )
-            feat_total.reshape(len(feat_total), 2*3 )
+            FEATURES = 2 * 3
+            if len(feat) >= FEATURES:
             
-            #dbscan on 
-            db = DBSCAN(eps=5.0).fit(feat_total)
-            
-            core_samples_mask = np.zeros_like(db.labels_, dtype=bool)
-            core_samples_mask[db.core_sample_indices_] = True
-            labels = db.labels_
-            
-            # Number of clusters in labels, ignoring noise if present.
-            n_clusters_ = len(set(labels)) - (1 if -1 in labels else 0)
-            
-            
-            
-            print 'on rank: ' + str(x) + ' ' + str(y) + ' ' + str(rank)
-            print 'clusters: ' + str( n_clusters_ )
+                print 'getting features...'
+                feat_total = np.array( feat )
+                feat_total.reshape(len(feat_total), FEATURES )
                 
-            dset[x,y] = n_clusters_  
-            
-            '''
-            for c in set(labels):
-                #fig = plt.figure()
-                #ax = fig.gca(projection='3d')
-                #ax.scatter(29,30,0,c='black',s=30)
+                #dbscan on 
+                db = DBSCAN(eps=5.0).fit(feat_total)
                 
-                size_cluster = 0
-                for l in range(0, len(sltotal)):
-                    if c == int(labels[l]):
-                        size_cluster += 1
-                        #ax.plot(sltotal[l][0], sltotal[l][1], sltotal[l][2]) 
+                core_samples_mask = np.zeros_like(db.labels_, dtype=bool)
+                core_samples_mask[db.core_sample_indices_] = True
+                labels = db.labels_
+                
+                # Number of clusters in labels, ignoring noise if present.
+                n_clusters_ = len(set(labels)) - (1 if -1 in labels else 0)
+                
+                print 'xy on rank: ' + str(x) + ' ' + str(y) + ' ' + str(rank)
+                print 'clusters: ' + str( n_clusters_ )
                     
-                 
-                #plt.title('Label: {0}, Size: {1}'.format(c,size_cluster))   
-                #ax.legend()
-                #plt.show()
-            '''
+                dset[x,y] = n_clusters_  
+                
+                '''
+                for c in set(labels):
+                    #fig = plt.figure()
+                    #ax = fig.gca(projection='3d')
+                    #ax.scatter(29,30,0,c='black',s=30)
                     
-    output.close()
+                    size_cluster = 0
+                    for l in range(0, len(sltotal)):
+                        if c == int(labels[l]):
+                            size_cluster += 1
+                            #ax.plot(sltotal[l][0], sltotal[l][1], sltotal[l][2]) 
+                        
+                     
+                    #plt.title('Label: {0}, Size: {1}'.format(c,size_cluster))   
+                    #ax.legend()
+                    #plt.show()
+                '''
+            else:
+                print 'xy on rank: ' + str(x) + ' ' + str(y) + ' ' + str(rank)
+                print 'reading error'
+                    
+                dset[x,y] = ERROR_CODE
+                
+                print 'wrote to dset'
+                
+                  
+    
     f0.close()
     f1.close()
     f2.close()
     f3.close()
     f4.close()
     f5.close()
+    output.close()
     
     print 'rank: ' + str(rank) + ' finished!'
     
