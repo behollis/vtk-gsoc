@@ -253,7 +253,7 @@ def clusterCrispFieldSlines(vec_field, sl_dict=None):
         
         print 'TOTAL CLUSTERS: ' + str(len(set(db.labels_)))
         
-        
+        '''
         fig = plt.figure()
         lc = dict()
         for lab in set(db.labels_):
@@ -275,7 +275,8 @@ def clusterCrispFieldSlines(vec_field, sl_dict=None):
             plt.title('feature position: ' + str(pos) )  
             plt.xlabel('feature x')
             plt.ylabel('feature y')
-            fig.savefig( DPATH+'feature_vecs' + str(pos) )   
+            fig.savefig( DPATH+'feature_vecs' + str(pos) )
+        '''   
         
         
     except:
@@ -381,13 +382,13 @@ if __name__ == '__main__':
     files = ( f0,f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11, f12, f13, f14, f15, f16, f17)
     files_f = ( f0f,f1f,f2f,f3f,f4f,f5f,f6f,f7f,f8f,f9f,f10f,f11f, f12f, f13f, f14f, f15f, f16f, f17f )
     
-    ext_xmin = 50; ext_xmax = 70; ext_ymin = 40; ext_ymax = 50
-    mem_min = 1; mem_max = 1
+    ext_xmin = 50; ext_xmax = 55; ext_ymin = 40; ext_ymax = 50
+    mem_min = 1; mem_max = 1000
     # readstreamlines for region
     
     member_slines = list()
     SKIP = 1
-    for member in range(mem_min, mem_max + 1, 100):
+    for member in range(mem_min, mem_max + 1, 10):
         region_slines = list()
         #print member
         for idx in range(0, len(files)): #f, ff in files, files_f:
@@ -400,36 +401,28 @@ if __name__ == '__main__':
                         region_slines.append( sl )
                     
         member_slines.append( region_slines )
-           
-    '''
-    for idx in range(len(member_slines)):
-        fig, ax = plt.subplots()
-        #ax = fig.gca(projection='3d')
-        
-        #random.seed()
-        #c = (random.uniform(0.,1.), random.uniform(0.,1.), random.uniform(0.,1.))
+         
+    fig, ax = plt.subplots()  
+    for idx in range(len(member_slines[0])):
         c = (0.,0.,0.)
         for g in member_slines[idx]:
             if len(g) != 0:
                 for l in g:
-                    #ax.plot(l[0], l[1], 0.0, color = c, linewidth = 0.3)
                     plt.plot(l[0], l[1], color = c, linewidth = 0.3)
-                    #print 'color{0}'.format(c) 
-                    #print l[0]
-                    #print l[1]
-                    #print l[2] 
         plt.title('Region Streamlines, member {0}'.format(idx)) 
         ax.set_xlim([ext_xmin, ext_xmax])
         ax.set_ylim([ext_ymin, ext_ymax]) 
         #ax.legend()
-        plt.savefig(DPATH+'BOTH{0}member'.format(idx))
-    '''
+    plt.savefig(DPATH+'RegionStreamlines'.format(idx))
         
+    all_members = list()
     for idx, m in enumerate(member_slines):
         member_sl_dict = dict()
         db, feat = clusterCrispFieldSlines(m, sl_dict = member_sl_dict)
         
         rep_sl_tuples = getRepStreamlines(db, member_sl_dict,m)
+        
+        all_members.append(rep_sl_tuples)
         
         for c in set(db.labels_):
             
@@ -486,7 +479,17 @@ if __name__ == '__main__':
             plt.ylabel('y')
             #print 'label' + str(c)
             plt.savefig( DPATH+'BOTHRep{0}member{1}label'.format(idx, int(c)) )
-            
+     
+    fig, ax = plt.subplots()       
+    for rep2 in all_members:
+        ax.set_xlim([ext_xmin, ext_xmax])
+        ax.set_ylim([ext_ymin, ext_ymax])
+        for rep in rep2:
+            plt.plot( rep[1][0], rep[1][1] ) 
+        
+    plt.savefig( DPATH+'REPStreamlinesAll') 
+        
+        
     
     '''
     # streamline clustering for seed...

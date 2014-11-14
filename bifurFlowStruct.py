@@ -166,9 +166,9 @@ def readStreamlines(x, y, f):
     #print slines
     return slines
    
-NUM_PROC = 6 #number of processes / cores per node
-NUM_NODES = 1
-X_EXT = 90#125
+NUM_PROC = 8 #number of processes / cores per node
+NUM_NODES = 3
+X_EXT = 125
 Y_EXT = 125 
 SLICE_Y = int( Y_EXT / float( NUM_PROC ) )
 SLICE_X = int ( X_EXT / float( NUM_NODES ) )
@@ -211,22 +211,34 @@ if __name__ == '__main__':
         f4 = h5py.File(DPATH+'1.4.hdf5', 'r',driver='mpio', comm=comm)
         f5 = h5py.File(DPATH+'1.5.hdf5', 'r',driver='mpio', comm=comm)
         
+        
+    '''
+    f0.atomic = True
+    f1.atomic = True
+    f2.atomic = True
+    f3.atomic = True
+    f4.atomic = True
+    f5.atomic = True
+    '''   
+        
     print 'finished reading hdf5 files'
         
     output = h5py.File( DPATH+str(node)+'clusterFlowStruct.hdf5', 'w', driver='mpio', comm=comm)
     
-    dset = output.create_dataset( name='clusterCnt',shape = ( X_EXT/3 + 1, Y_EXT ), dtype='f' )
+    dset = output.create_dataset( name='clusterCnt',shape = ( X_EXT, Y_EXT), dtype='f' )
                                   
     # streamline clustering for seed...
-    for x in range( node*(X_EXT/3), (node+1)*(X_EXT/3)+1 ): #range( 0, X_EXT ):
+    print 'end x-range: {0}'.format((node+1)*SLICE_X) 
+    for x in range( node*SLICE_X, (node+1)*SLICE_X ): 
         for y in range( rank*SLICE_Y, (rank+1)*SLICE_Y ):
             
             if x == 0:
                 #avoid edge case
+                dset[x,y] = ERROR_CODE  
                 continue
             
-            print 'x{0}y{1} on rank: {2}'.format(x,y,rank)
-
+            print 'x{0} y{1} on rank: {2}'.format(x,y,rank)
+             
             slines0 = readStreamlines(x, y, f0)
             slines2 = readStreamlines(x, y, f2)
             slines4 = readStreamlines(x, y, f4)
@@ -237,17 +249,16 @@ if __name__ == '__main__':
             #sltotal = slines0 + slines1 + slines2 + slines3 + slines4 + slines5
             sltotal = slines0 + slines2 + slines4 
             
-            '''
-            fig = plt.figure()
-            ax = fig.gca(projection='3d')
-            ax.scatter(29,30,0,c='black',s=30)
-            plt.title('All members, Size of Cluster: {0}'.format(len(sltotal)))
-            for l in sltotal:
-                ax.plot(l[0], l[1], l[2])    
             
-            ax.legend()
-            plt.show()
-            '''
+            #fig = plt.figure()
+            #ax = fig.gca(projection='3d')
+            #ax.scatter(29,30,0,c='black',s=30)
+            #plt.title('All members, Size of Cluster: {0}'.format(len(sltotal)))
+            #for l in sltotal:
+            #    ax.plot(l[0], l[1], l[2])    
+            #ax.legend()
+            #plt.show()
+            
             
             #calculate feature vectors for streamlines
             feat = calcStreamlineFeatures(sltotal)
@@ -271,26 +282,13 @@ if __name__ == '__main__':
                 
                 print 'xy on rank: ' + str(x) + ' ' + str(y) + ' ' + str(rank)
                 print 'clusters: ' + str( n_clusters_ )
-                    
-                dset[x,y] = n_clusters_  
                 
-                '''
-                for c in set(labels):
-                    #fig = plt.figure()
-                    #ax = fig.gca(projection='3d')
-                    #ax.scatter(29,30,0,c='black',s=30)
-                    
-                    size_cluster = 0
-                    for l in range(0, len(sltotal)):
-                        if c == int(labels[l]):
-                            size_cluster += 1
-                            #ax.plot(sltotal[l][0], sltotal[l][1], sltotal[l][2]) 
-                        
-                     
-                    #plt.title('Label: {0}, Size: {1}'.format(c,size_cluster))   
-                    #ax.legend()
-                    #plt.show()
-                '''
+                # test to see if this is where hang is
+                
+                print 'writing to hdf5 file...'    
+                dset[x,y] = n_clusters_  
+                print 'finished writing to hdf5!'
+                
             else:
                 print 'xy on rank: ' + str(x) + ' ' + str(y) + ' ' + str(rank)
                 print 'reading error'
@@ -298,16 +296,25 @@ if __name__ == '__main__':
                 dset[x,y] = ERROR_CODE
                 
                 print 'wrote to dset'
-                
-                  
-    
+               
+    #comm.Barrier() 
+    print 'closing hdf5 files...'
     f0.close()
+    print 'closed f0'
     f1.close()
+    print 'closed f1'
     f2.close()
+    print 'closed f2'
     f3.close()
+    print 'closed f3'
     f4.close()
+    print 'closed f4'
     f5.close()
+    print 'closed f5'
     output.close()
+    print 'output closed'
+   
+        
     
     print 'rank: ' + str(rank) + ' finished!'
     
